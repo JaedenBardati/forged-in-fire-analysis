@@ -4,10 +4,6 @@ import yt
 import matplotlib.pyplot as plt
 import time
 
-runtag = '' # ''
-step=334
-st = time.time()
-
 kB = 1.380649e-23*an.Joule #J/K
 h = 6.62607015e-34*an.Joule/an.Hz #J/Hz
 c = 2.99792458e8*an.meter/an.second #m/s
@@ -18,12 +14,41 @@ def Blamb(lamb, temp):
 def Bnu(nu, temp):
     return (2*h*nu**3/c**2)/(np.exp(h*nu/(kB*temp))-1)
 
+
+##### PARAMETERS #####
+
+runtag = '' # ''
+step=334
+radius = '1 kpc'
+print('step is     ', step)
+print('radius is   ', radius)
+
+typical_rho_grain = 2*an.g/an.cm**3  # 2 g/cm^3
+amin = 5*an.nm       # 5 nm
+amax = 1*an.micron   # 1 micron
+amin, amax = amin.in_units('cm'), amax.in_units('cm')
+print('rho_grain is', typical_rho_grain)
+print('amin is     ', amin)
+print('amax is     ', amax)
+assert amax > amin, 'Max grain size must be larger than min size.'
+
+min_lamb = 10**-1.5 *an.micron  # in micrometers
+max_lamb = 10**3.0 *an.micron   # in micrometers
+num_lambs = 200
+min_lamb, max_lamb = min_lamb.in_units('cm'), max_lamb.in_units('cm')
+print('min_lamb is ', min_lamb)
+print('max_lamb is ', max_lamb)
+print('num_lambs is', num_lambs)
+
+
+##### LOAD SIM #####
+
+st = time.time()
 snap = an.load_fifs(step=step)
 
-radius = '1 kpc'
 snap.set_subregion('box', center=snap.BH_pos, width=radius)
 
-lambs = (np.logspace(-1.5, 3.0, num=200)*yt.units.μm).in_units('cm')
+lambs = np.logspace(np.log10(min_lamb.in_units('cm')), np.log10(max_lamb.in_units('cm')), num=num_lambs)*an.cm
 temps = snap[('Dust', 'Temperature')]
 r2 = ((snap[('Dust', 'Coordinates')] - snap.BH_pos)**2).sum(axis=1).in_units('pc**2')
 masses = snap[('Dust', 'mass')].in_units('g')
@@ -32,15 +57,17 @@ lambs = lambs.reshape((1, lambs.shape[0]))
 temps = temps.reshape((temps.shape[0], 1))
 masses = masses.reshape((masses.shape[0], 1))
 
+N0 = 3/(8*np.pi*typical_rho_grain*(amax**0.5 - amin**0.5))  # g/cm^3
+alamb = np.minimum(np.maximum(lambs/(2*np.pi), amin), amax)
+print('N0 is       ', N0)
+print('alamb min is', np.min(alamb))
+print('alamb max is', np.max(alamb))
+
 mt = time.time()
 print('Loading took {} s.'.format(mt - st))
 
-typical_rho_grain = 2*an.g/an.cm**3  # g/cm^3
-typical_a_grain = 1e-5*an.cm  # 0.1 micron
-N0 = 9/(4*np.pi*typical_rho_grain*typical_a_grain**0.5)  # g/cm^3
 
-amin, amax = 5e-7*an.cm, 1e-4*an.cm # 5 nm, 1 micron
-alamb = np.minimum(np.maximum(lambs/(2*np.pi), amin), amax)
+##### RUN #####
 
 isLum = True
 isLambdaI = True
@@ -53,6 +80,9 @@ else:  # luminosity
 
 et = time.time()
 print('Calculating intensity took {} s.'.format(et - mt))
+
+
+##### PLOT #####
 
 plt.figure()
 sub_lambs = lambs.reshape(lambs.shape[1]).in_units('μm')
