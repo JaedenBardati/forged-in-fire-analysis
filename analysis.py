@@ -679,6 +679,10 @@ class ForgedInFireSim(Simulation):
 ############## ALIASES ##############
 FIFS = ForgedInFireSim
 
+Å = angstrom = angstroms = yt.units.angstrom
+nm = nanometer = nanometers = yt.units.nm
+μm = micron = microns = micrometer = micrometers = yt.units.μm
+mm = milimeter = milimeters = yt.units.mm
 cm = centimeter = centimeters = yt.units.cm
 m = meter = meters = yt.units.meter
 km = kilometer = kilometers = yt.units.km
