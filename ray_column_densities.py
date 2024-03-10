@@ -27,7 +27,7 @@ for i in range(N):
     an.LOGGER.info(' > getting density %d/%d...' %(i+1, N))
 
     # integrate intensity
-    col_dens = (ray[('Dust', 'density')]*length).sum()   # temp, should really integrate over length!!
+    col_dens = (ray[('Dust', 'density')]*length).sum()   # temp, should really integrate over length somehow!! (replace with something like ray[('Dust', 'radius')]? note this probably doesnt exist yet)
     an.LOGGER.info(' > {} {} --> {}'.format(theta, phi, col_dens))
     integrated_col_dens.append(col_dens)
 
