@@ -236,6 +236,11 @@ def to_spherical_coords(pos, center=None, normal=None, pole=None, equatorial_ang
     return new_coords
 
 
+def random_unit_sphere_point():
+    """Returns a randomly sampled polar and azimuthal angle (theta, phi) on
+    a unit sphere, such that the points are evenly liekly across the sphere."""
+    return np.arccos(np.random.uniform(-1, 1)), 2*np.pi*np.random.uniform(0, 1)
+
 ############## ABSTRACT CLASSES ##############
 
 class Subregion:
@@ -260,8 +265,9 @@ class Subregion:
                 raise ValueError('Unknown property named {}.'.format(propname))
             real_properties[propname] = propval
 
-        if None in real_properties.values(): # for now enforce all properties
-            raise ValueError('You must supply all properties required properties for subregion type {}. Namely: {}.'.format(self.kind, ', '.join(self._SUPPORTED_PROPERTIES[self.kind])))
+        for k in real_properties.values(): # for now enforce all properties
+            if None is k:
+                raise ValueError('You must supply all properties required properties for subregion type {}. Namely: {}.'.format(self.kind, ', '.join(self._SUPPORTED_PROPERTIES[self.kind])))
 
     def _identifier_hash(self, force_unique=False):
         """Creates a hash that identifies unique sub regions. Currently hardcoded and must be updated when updating supported types."""
@@ -578,9 +584,11 @@ class ForgedInFireSnapshot(Snapshot):
     """
     DEFAULT_UNITSYSTEM = {'L': yt.units.parsec, 'M': yt.units.msun, 't': yt.units.year, 'T': yt.units.kelvin}
 
-    @lazyproperty
+    BH_COORDS_PROP = ('PartType3','Coordinates')
+
+    @property
     def BH_pos(self):
-        centers = self.ad['PartType3','Coordinates']
+        centers = self.ad[self.BH_COORDS_PROP]
         assert len(centers) == 1, 'It appears that PartType3 may not be the central BH!'
         return centers[0]
 
@@ -607,15 +615,20 @@ class ForgedInFireSnapshot(Snapshot):
     @staticmethod
     def _dust_coordinates(field, data):
         return data[('PartType0', 'Coordinates')]
-    
-    @staticmethod
-    def _dust_radius(field, data):
-        return data[('PartType0', 'radius')]
 
     @staticmethod
     def _dust_number_density(field, data):
         return data[('PartType0', 'density')]/data[('PartType0', 'mass')]
     
+    # @staticmethod
+    # def _dust_radius(field, data):
+    #     print(data[ForgedInFireSnapshot.BH_COORDS_PROP])
+    #     LOGGER.info(data[ForgedInFireSnapshot.BH_COORDS_PROP])
+    #     return np.sqrt(((data[('Dust', 'Coordinates')] - data[ForgedInFireSnapshot.BH_COORDS_PROP][0])**2).sum(axis=1))   # radius from the central BH
+
+    def dust_radius(self):
+        return np.sqrt(((data[('Dust', 'Coordinates')] - self.BH_pos)**2).sum(axis=1))   # radius from the central BH
+
     def _onload_ad(self, ad):
         self.ds.add_field(name=("PartType0", "Dust_To_Gas_Ratio"), function=self._dust_to_gas_ratio, sampling_type="local", units="dimensionless")
         self.ds._sph_ptypes = (*self.ds._sph_ptypes, 'Dust')   # Add dust SPH type
@@ -623,8 +636,8 @@ class ForgedInFireSnapshot(Snapshot):
         self.ds.add_field(name=("Dust", "mass"), function=self._dust_mass, sampling_type="local", units="g")
         self.ds.add_field(name=("Dust", "Temperature"), function=self._dust_temp, sampling_type="local", units="dimensionless")
         self.ds.add_field(name=("Dust", "Coordinates"), function=self._dust_coordinates, sampling_type="local", units="cm")
-        self.ds.add_field(name=("Dust", "radius"), function=self._dust_radius, sampling_type="local", units="cm")
         self.ds.add_field(name=("Dust", "number density"), function=self._dust_number_density, sampling_type="local", units="cm**-3")
+        #self.ds.add_field(name=('Dust', 'radius'), function=self._dust_radius, sampling_type="local", units="cm", force_override=True)
 
 
 class ForgedInFireSim(Simulation):
