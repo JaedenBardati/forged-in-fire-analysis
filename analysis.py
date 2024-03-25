@@ -18,8 +18,8 @@ formatter = logging.Formatter('analysis : [ %(levelname)-8s ] %(asctime)s - %(me
 ch.setFormatter(formatter)
 LOGGER.addHandler(ch)
 
-from astropy.utils.decorators import lazyproperty
 import numpy as np
+from astropy.utils.decorators import lazyproperty
 import yt, unyt
 yt.set_log_level(logging.WARNING)
 
