@@ -47,7 +47,7 @@ for i in range(N):
     sorted_r_args = np.argsort(r)
     sorted_r = r[sorted_r_args]
     dr = np.diff(sorted_r)
-    radial_args = [np.searchsorted(sorted_r, R) for R in Rs]
+    radial_args = [min(np.searchsorted(sorted_r, R), len(sorted_r) - 1) for R in Rs]
 
     dust_densities = dust_densities[sorted_r_args]
     gas_densities = gas_densities[sorted_r_args]
