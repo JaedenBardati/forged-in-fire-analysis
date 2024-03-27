@@ -6,10 +6,17 @@ Requires: astropy, numpy, yt
 Jaeden Bardati 2023
 """
 
+import os
 import ast
 import unittest
-
 import logging
+
+import numpy as np
+from astropy.utils.decorators import lazyproperty
+import yt, unyt
+
+############## LOGGING AND PARALLELISM ##############
+
 LOGGER = logging.getLogger('__main__.' + __name__)
 LOGGER.setLevel(logging.WARNING if __name__ == "__main__" else logging.INFO)
 ch = logging.StreamHandler()
@@ -18,10 +25,19 @@ formatter = logging.Formatter('analysis : [ %(levelname)-8s ] %(asctime)s - %(me
 ch.setFormatter(formatter)
 LOGGER.addHandler(ch)
 
-import numpy as np
-from astropy.utils.decorators import lazyproperty
-import yt, unyt
 yt.set_log_level(logging.WARNING)
+
+try:
+    from mpi4py import MPI
+except ImportError:
+    LOGGING.info("Could not enable yt parallelism: mpi4py is not installed.")
+else:
+    communicator = MPI.COMM_WORLD
+    available_processes = communicator.size
+    if available_processes > 1:
+        yt.enable_parallelism()
+        LOGGER.info('Enabled yt parallelism with {} processes.'.format(available_processes))
+    del communicator, available_processes, MPI
 
 
 ############## FUNCTIONS ##############
