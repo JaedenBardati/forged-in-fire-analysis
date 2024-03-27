@@ -99,7 +99,7 @@ an.LOGGER.info('Ilamb.shape ='+str(Ilamb.shape))
 an.LOGGER.info('min Ilamb:'+str(np.min(Ilamb))+'max Ilamb:'+str(np.max(Ilamb))+'mean Ilamb:'+str(np.mean(Ilamb)))
 
 # extinction
-opacity_500 = 0.0005 * an.cm**2 / an.gram   # 1
+opacity_500 = 0.0001 * an.cm**2 / an.gram   # 1
 opacity = opacity_500 * ((500*an.μm).in_units('cm')/lambs)**2
 #opacity = 20*(0.397 * an.cm**2 / an.gram)#*0.5*(1-np.tanh(np.log10(np.divide(temps, 1500))))      # see eq. 13 of https://iopscience.iop.org/article/10.3847/1538-4357/aa76e4
 #opacity = 0.5*(opacity[1:] + opacity[:-1])
