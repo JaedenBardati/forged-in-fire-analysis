@@ -6,7 +6,6 @@ Requires: astropy, numpy, yt
 Jaeden Bardati 2023
 """
 
-import os
 import ast
 import unittest
 import logging
@@ -15,17 +14,20 @@ import numpy as np
 from astropy.utils.decorators import lazyproperty
 import yt, unyt
 
+
 ############## LOGGING AND PARALLELISM ##############
 
-LOGGER = logging.getLogger('__main__.' + __name__)
-LOGGER.setLevel(logging.WARNING if __name__ == "__main__" else logging.INFO)
-ch = logging.StreamHandler()
-ch.setLevel(logging.INFO)
-formatter = logging.Formatter('analysis : [ %(levelname)-8s ] %(asctime)s - %(message)s')
-ch.setFormatter(formatter)
-LOGGER.addHandler(ch)
+DEBUGGING = False
 
 yt.set_log_level(logging.WARNING)
+
+LOGGER_LEVEL = logging.DEBUG if DEBUGGING else logging.WARNING if __name__ == "__main__" else logging.INFO
+LOGGER = logging.getLogger('__main__.' + __name__)
+LOGGER.setLevel(LOGGER_LEVEL)
+_logger_handler = logging.StreamHandler()
+_logger_formatter = logging.Formatter('analysis : [ %(levelname)-8s ] %(asctime)s - %(message)s')
+_logger_handler.setFormatter(_logger_formatter)
+LOGGER.addHandler(_logger_handler)
 
 try:
     from mpi4py import MPI
@@ -37,6 +39,8 @@ else:
     if available_processes > 1:
         yt.enable_parallelism()
         LOGGER.info('Enabled yt parallelism with {} processes.'.format(available_processes))
+    else:
+        LOGGER.debug('Could not enable yt parallelism: Only {} process available.'.format(available_processes))
     del communicator, available_processes, MPI
 
 
@@ -103,12 +107,12 @@ def parse_unit(val, default_unit=None, errorname='unit'):
 
     # If value does not contain unit information
     if default_unit is None and override_unit is None:
-        LOGGER.info('A value is interpreted as being unitless. Must set a default unit or include units in system if it is not!')
+        LOGGER.debug('A value is interpreted as being unitless. Must set a default unit or include units in system if it is not!')
         override_unit = yt.units.dimensionless
 
     # If unit was not found, use default
     if override_unit is None:
-        LOGGER.info('Using default unit {} for value.'.format(repr(default_unit)))
+        LOGGER.debug('Using default unit {} for value.'.format(repr(default_unit)))
         unit = default_unit
     else:
         unit = override_unit
