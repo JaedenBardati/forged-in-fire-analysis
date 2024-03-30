@@ -262,16 +262,23 @@ def random_unit_sphere_point():
     return np.arccos(np.random.uniform(-1, 1)), 2*np.pi*np.random.uniform(0, 1)
 
 
-def cart_to_sph(x, y, z):
-    s = np.sqrt(x*x + y*y)
-    r = np.sqrt(s*s + z*z)
-    theta = np.arccos(z/r)
-    phi = np.sign(y)*np.arccos(x/s)
+def cart_to_sph(x, y, z, center=None, theta_pole=None, phi_pole=None):
+    x, y, z = yt.units.unyt_array(x), yt.units.unyt_array(y), yt.units.unyt_array(z)
+    units = x.units
+    pos = np.stack((x, y.in_units(units), z.in_units(units)), axis=-1)
+    transformed_pos = to_spherical_coords(pos, center=center, normal=theta_pole, pole=phi_pole)
+    r, theta, phi = transformed_pos.T
+    r = r*units
     return r, theta, phi
 
-def cart_to_cyl(x, y, z):
-    s = np.sqrt(x*x + y*y)
-    phi = np.sign(y)*np.arccos(x/s)
+def cart_to_cyl(x, y, z, center=None, normal=None, pole=None):
+    x, y, z = yt.units.unyt_array(x), yt.units.unyt_array(y), yt.units.unyt_array(z)
+    units = x.units
+    pos = np.stack((x, y.in_units(units), z.in_units(units)), axis=-1)
+    transformed_pos = to_cylindrical_coords(pos, center=center, normal=normal, pole=pole)
+    s, phi, z = transformed_pos.T
+    s = s*units
+    z = z*units
     return s, phi, z
 
 def sph_to_cart(r, theta, phi):
@@ -810,7 +817,9 @@ def load_fifs(step=334, loadoptions=None):
     snap = sim[step]
     return snap
 
-def load_fifs_box(step=334, width='1 pc', loadoptions=None):
+def load_fifs_box(step=334, width=None, loadoptions=None):
+    if width is None:
+        width = '1 pc'
     sim = ForgedInFireSim(loadoptions=loadoptions)
     snap = sim[step]
     snap.set_subregion('box', center=snap.BH_pos, width=width)
