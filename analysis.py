@@ -293,6 +293,43 @@ def cyl_to_cart(s, phi, z):
     return x, y, z
 
 
+def integral(integrand, variable, axis=None):
+    sorted_variable_args = np.argsort(variable)
+
+    sorted_integrand = integrand[sorted_variable_args]
+    sorted_variable = variable[sorted_variable_args]
+    dvariable = np.diff(sorted_variable)
+
+    midvalue_integrand = 0.5*(sorted_integrand[:-1]+sorted_integrand[1:])
+    return (midvalue_integrand*dvariable).sum(axis=axis)
+
+def integral_average(quantity, variable=None, weights=None, axis=None, already_sorted=False):
+    if not already_sorted:
+        sorted_variable_args = np.argsort(variable)
+        sorted_quantity = quantity[sorted_variable_args]
+        sorted_variable = variable[sorted_variable_args]
+        if weights is not None:
+            sorted_weights = weights[sorted_variable_args]
+    else:
+        sorted_quantity = quantity
+        sorted_variable = variable
+        sorted_weights = weights
+
+    dvariable = np.diff(sorted_variable)
+
+    sorted_top_integrand = sorted_quantity*sorted_weights if weights is not None else sorted_quantity
+    top_integrand = 0.5*(sorted_top_integrand[:-1] + sorted_top_integrand[1:])
+    top_integral = (top_integrand*dvariable).sum(axis=axis)
+
+    if weights is not None:
+        bot_integrand = 0.5*(sorted_weights[:-1] + sorted_weights[1:])
+        bot_integral = (bot_integrand*dvariable).sum(axis=axis)
+    else:
+        bot_integral = len(dvariable)
+
+    return top_integral/bot_integral
+
+
 ############## ABSTRACT CLASSES ##############
 
 class Subregion:
