@@ -8,10 +8,7 @@ an.LOGGER.info('loading snapshot...')
 
 step = 334
 width = '1 kpc'
-
 snap = an.load_fifs_box(step=step, width=width)
-center = snap.BH_pos
-length = an.parse_unit(width).in_units('cm')
 
 an.LOGGER.info('beginning calculation...')
 
