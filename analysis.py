@@ -261,6 +261,31 @@ def random_unit_sphere_point():
     a unit sphere, such that the points are evenly liekly across the sphere."""
     return np.arccos(np.random.uniform(-1, 1)), 2*np.pi*np.random.uniform(0, 1)
 
+
+def cart_to_sph(x, y, z):
+    s = np.sqrt(x*x + y*y)
+    r = np.sqrt(s*s + z*z)
+    theta = np.arccos(z/r)
+    phi = np.sign(y)*np.arccos(x/s)
+    return r, theta, phi
+
+def cart_to_cyl(x, y, z):
+    s = np.sqrt(x*x + y*y)
+    phi = np.sign(y)*np.arccos(x/s)
+    return s, phi, z
+
+def sph_to_cart(r, theta, phi):
+    x = r*np.sin(theta)*np.cos(phi)
+    y = r*np.sin(theta)*np.sin(phi)
+    z = r*np.cos(theta)
+    return x, y, z
+
+def cyl_to_cart(s, phi, z):
+    x = s*np.cos(phi)
+    y = s*np.sin(phi)
+    return x, y, z
+
+
 ############## ABSTRACT CLASSES ##############
 
 class Subregion:
