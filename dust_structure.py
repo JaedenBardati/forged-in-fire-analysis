@@ -21,7 +21,7 @@ rho = snap[('Dust', 'density')].in_units('g/cm**3')
 x, y, z = pos.T
 s, phi, z = an.cart_to_cyl(x, y, z)
 
-N = 100
+N = 1000
 zlimit_1, zlimit_2 = -0.1, 0.1
 logslimit_1, logslimit_2 = -3, 3
 ZS = np.linspace(zlimit_1, zlimit_2, num=N+1)
