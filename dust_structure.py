@@ -17,7 +17,7 @@ an.LOGGER.info('1 pc angular momentum is: {}'.format(L_1pc))
 snap = an.load_fifs_box(step=step, width=width)
 
 # get quanities
-gas_too = True
+gas_too = True  # note: this doubles execution time
 pos = snap.dust_centered_pos.in_units('pc')
 rho = snap[('Dust', 'density')].in_units('g/cm**3')
 if gas_too:
@@ -36,7 +36,7 @@ sorted_s = s[sorted_phi_args]
 sorted_phi = phi[sorted_phi_args]
 sorted_z = z[sorted_phi_args]
 
-N = 400
+N = 300
 zlimit_1, zlimit_2 = -0.5, 0.5
 logslimit_1, logslimit_2 = -3, 0
 ZS = np.linspace(zlimit_1, zlimit_2, num=N+1)
