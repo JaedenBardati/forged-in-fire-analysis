@@ -101,7 +101,7 @@ columns = pd.MultiIndex.from_tuples(tuple(np.array([SS[:-1], SS[1:]]).T), names=
 df = pd.DataFrame(columns=columns, index=indexes, data=avg_rho_map)
 df.to_csv('dust_structure.csv')  # load with: pd.read_csv('dust_structure.csv', index_col=[0,1], header=[0,1]).to_numpy()
 
-if gass_too:
+if gas_too:
     gas_df = pd.DataFrame(columns=columns, index=indexes, data=avg_gas_rho_map)
     gas_df.to_csv('gas_structure.csv')  # load with: pd.read_csv('gas_structure.csv', index_col=[0,1], header=[0,1]).to_numpy()
 
