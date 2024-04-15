@@ -88,7 +88,7 @@ class ASCII_SKIRT():
         for i, part_type in enumerate(self._particle_types):
             part_filenames[i] = filename + "_" + part_type + '.' +  ext
 
-            part_headers[i] = 'Particles of type "{}" for a simulated galaxy in SKIRT import format.\n'.format(part_type)
+            part_headers[i] = 'SPH particle data of type "{}" in SKIRT import format.\n'.format(part_type)
             if self._comments[i] is not None and self._comments[i] != '': 
                 part_headers[i] += self._comments[i] + newline_char
             part_headers[i] += newline_char
