@@ -176,7 +176,7 @@ def rotation_matrix_transform_a_to_b_and_c_to_d(a, b, c, d, tol=1e-8):
     R2 = rotation_matrix_transform_a_to_b(c, d)
     return np.dot(R2, R1)
 
-def translate_and_rotate(vectors, center=None, xdir=None, ydir=None, zdir=None):
+def translate_and_rotate_vectors(vectors, center=None, xdir=None, ydir=None, zdir=None):
     """Translates and rotates vectors in Cartesian coordinate space."""
     # Translation
     if center is not None:
@@ -228,7 +228,7 @@ def position_transform_decorator(func):
             if pos.units != center.units:
                 raise ValueError('Position and center argument must have the same unit dimension.')
             center = center.in_units(pos.units)
-        new_pos = translate_and_rotate(pos, center=center, zdir=normal, xdir=pole)
+        new_pos = translate_and_rotate_vectors(pos, center=center, zdir=normal, xdir=pole)
         returned_value = func(new_pos, *args, center=center, normal=normal, pole=pole, **kwargs)
         return returned_value
     return inner_position_transform_decorator
