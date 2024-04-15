@@ -282,14 +282,18 @@ def cart_to_cyl(x, y, z, center=None, normal=None, pole=None):
     return s, phi, z
 
 def sph_to_cart(r, theta, phi):
-    x = r*np.sin(theta)*np.cos(phi)
-    y = r*np.sin(theta)*np.sin(phi)
-    z = r*np.cos(theta)
+    r = yt.units.unyt_array(r)
+    units = r.units
+    x = r*np.sin(theta)*np.cos(phi)*units
+    y = r*np.sin(theta)*np.sin(phi)*units
+    z = r*np.cos(theta)*units
     return x, y, z
 
 def cyl_to_cart(s, phi, z):
-    x = s*np.cos(phi)
-    y = s*np.sin(phi)
+    s = yt.units.unyt_array(s)
+    units = s.units
+    x = s*np.cos(phi)*units
+    y = s*np.sin(phi)*units
     return x, y, z
 
 
@@ -318,6 +322,35 @@ def integral_average(quantity, variable=None, weights=None, axis=None, already_s
     dvariable = np.diff(sorted_variable)
 
     sorted_top_integrand = sorted_quantity*sorted_weights if weights is not None else sorted_quantity
+    top_integrand = 0.5*(sorted_top_integrand[:-1] + sorted_top_integrand[1:])
+    top_integral = (top_integrand*dvariable).sum(axis=axis)
+
+    if weights is not None:
+        bot_integrand = 0.5*(sorted_weights[:-1] + sorted_weights[1:])
+        bot_integral = (bot_integrand*dvariable).sum(axis=axis)
+    else:
+        bot_integral = len(dvariable)
+
+    return top_integral/bot_integral
+
+def integral_variance(quantity, variable=None, weights=None, axis=None, already_sorted=False, mean=None):
+    if not already_sorted:
+        sorted_variable_args = np.argsort(variable)
+        sorted_quantity = quantity[sorted_variable_args]
+        sorted_variable = variable[sorted_variable_args]
+        if weights is not None:
+            sorted_weights = weights[sorted_variable_args]
+    else:
+        sorted_quantity = quantity
+        sorted_variable = variable
+        sorted_weights = weights
+    
+    if mean is None:
+        mean = integral_average(sorted_quantity, variable=sorted_variable, weights=sorted_weights, axis=axis, already_sorted=True)
+
+    dvariable = np.diff(sorted_variable)
+
+    sorted_top_integrand = (sorted_quantity - mean)**2 * sorted_weights if weights is not None else (sorted_quantity - mean)**2
     top_integrand = 0.5*(sorted_top_integrand[:-1] + sorted_top_integrand[1:])
     top_integral = (top_integrand*dvariable).sum(axis=axis)
 
