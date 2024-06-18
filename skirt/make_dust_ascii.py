@@ -115,48 +115,152 @@ class ASCII_SKIRT():
 an.LOGGER.info('Loading data...')
 
 step = 334
-width = '1 kpc'
+box_size_pc = 1  # 100
+width = 10*box_size_pc*an.pc
+box_cutoff = box_size_pc*an.pc # roughly an order of magnitude smaller than width --> box of output
 
-L_1pc = np.array([-0.98523201,  0.14804156,  0.08603251])
-""" Code to get L_1pc:
-snap = an.load_fifs_box(step=step, width='1 pc')
-L_1pc = snap.gas_angular_momentum
-an.LOGGER.info('1 pc angular momentum is: {}'.format(L_1pc))
+L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" XD
+""" Code to get L_1dpc:
+snap = an.load_fifs_box(step=step, width='0.1 pc')
+L_1dpc = snap.gas_angular_momentum
+an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc))
+# at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
 """
 
 snap = an.load_fifs_box(step=step, width=width)
 
 
 pos = snap.dust_centered_pos.in_units('kpc')
-x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1pc) * pos.units).T  # rotate so faceon is in z direction
+x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1dpc) * pos.units).T  # rotate so faceon is in z direction
 
 smooth = snap[('PartType0', 'SmoothingLength')].in_units('kpc')
 mass = snap[('Dust', 'mass')].in_units('Msun')
+density = snap[('Dust', 'density')].in_units('Msun/pc**3')
 vel = snap[('Dust', 'Velocities')].in_units('km*s**-1')
+temp = snap[("Dust", "Temperature")]
 
+gas_x, gas_y, gas_z = x.copy(), y.copy(), z.copy()
+gas_smooth = smooth.copy()
+gas_mass = snap[('PartType0', 'mass')].in_units('Msun')
+gas_vel = vel.copy()
+
+gas_metallicity = snap[('PartType0', 'metallicity')]/0.0134  # convert from mass fraction to solar metallicity units
+gas_temp = snap[('PartType0', 'Temperature')]
+
+x_selection = np.logical_and(-box_cutoff < x, x < box_cutoff)
+y_selection = np.logical_and(-box_cutoff < y, y < box_cutoff)
+z_selection = np.logical_and(-box_cutoff < z, z < box_cutoff)
+particle_selection = np.logical_and(np.logical_and(x_selection, y_selection), z_selection)
+
+maxTemp = None  # None
+if maxTemp is None:
+    dust_selection = particle_selection
+else:
+    temp = snap[('Dust', 'Temperature')]
+    dust_selection = np.logical_and(particle_selection, temp<=maxTemp)
+
+x = x[dust_selection]
+y = y[dust_selection]
+z = z[dust_selection]
+smooth = smooth[dust_selection]
+mass = mass[dust_selection]
+vel = vel[dust_selection]
+temp = temp[dust_selection]
+
+gas_x = gas_x[particle_selection]
+gas_y = gas_y[particle_selection]
+gas_z = gas_z[particle_selection]
+gas_smooth = gas_smooth[particle_selection]
+gas_mass = gas_mass[particle_selection]
+gas_vel = gas_vel[particle_selection]
+gas_metallicity = gas_metallicity[particle_selection]
+gas_temp = gas_temp[particle_selection]
 
 
 ## CONVERT DATA AND SAVE
-an.LOGGER.info('Converting and saving data...')
-
-converted = ASCII_SKIRT()
-converted._particle_types = ('dust',)
-converted._comments = ('Converted from the forged in Fire super-zoom-in AGN simulation.',)
+output_dust = True
+output_gas = False
 
 nfrac_of_full_sample = 0.01
-SUBSAMPLE = np.random.choice(np.arange(len(mass)), size=int(len(mass)*nfrac_of_full_sample), replace=False) 
+pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extinction manually)
+voronoi = False  # voronoi binning
 
-converted._data = ({
-    'x-coordinate (kpc)': (lambda: x.in_units('kpc')[SUBSAMPLE],),
-    'y-coordinate (kpc)': (lambda: y.in_units('kpc')[SUBSAMPLE],),
-    'z-coordinate (kpc)': (lambda: z.in_units('kpc')[SUBSAMPLE],),
-    'smoothing length (kpc)': (lambda: smooth.in_units('kpc')[SUBSAMPLE],),
-    'mass (Msun)': (lambda: mass.in_units('Msun')[SUBSAMPLE],),
-    'velocity vx (km/s)': (lambda: vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
-    'velocity vy (km/s)': (lambda: vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-    'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
-},)
+ext = 'ascii'
 
-converted.write('dust', ext='ascii')
 
+an.LOGGER.info('Converting and saving data...')
+assert not (pmpt and voronoi), "Voronoi and PMPT not implemented together."
+assert not (output_gas and voronoi), "Voronoi and gas output not implemented together."
+
+converted = ASCII_SKIRT()
+converted._particle_types = []
+if output_dust:
+    converted._particle_types.append('dust')
+if output_gas:
+    converted._particle_types.append('gas')
+converted._particle_types = tuple(converted._particle_types)
+converted._comments = tuple(['Converted from the forged in Fire super-zoom-in AGN simulation.',]*len(converted._particle_types))
+
+SUBSAMPLE = np.random.choice(np.arange(len(mass)), size=int(len(mass)*nfrac_of_full_sample), replace=False) if nfrac_of_full_sample != 1 else slice(None)
+
+if not voronoi:
+    converted._data = []
+    if output_dust:
+        if pmpt:
+            converted._data.append({
+                'x-coordinate (kpc)': (lambda: gas_x.in_units('kpc')[SUBSAMPLE],),
+                'y-coordinate (kpc)': (lambda: gas_y.in_units('kpc')[SUBSAMPLE],),
+                'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
+                'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
+                'gas mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+                'metallicity (1)': (lambda: gas_metallicity[SUBSAMPLE],),
+                'temperature (K)': (lambda: temp[SUBSAMPLE],),  # still use dust temp here tho
+                'velocity vx (km/s)': (lambda: gas_vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vy (km/s)': (lambda: gas_vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+            })
+        else:
+            converted._data.append({     # manual dust mass calculation: no metalicity or temp provided to SKIRT
+                'x-coordinate (kpc)': (lambda: x.in_units('kpc')[SUBSAMPLE],),
+                'y-coordinate (kpc)': (lambda: y.in_units('kpc')[SUBSAMPLE],),
+                'z-coordinate (kpc)': (lambda: z.in_units('kpc')[SUBSAMPLE],),
+                'smoothing length (kpc)': (lambda: smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
+                'mass (Msun)': (lambda: mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+                'velocity vx (km/s)': (lambda: vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vy (km/s)': (lambda: vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+            })
+    if output_gas:
+        converted._data.append({  # gas
+            'x-coordinate (kpc)': (lambda: gas_x.in_units('kpc')[SUBSAMPLE],),
+            'y-coordinate (kpc)': (lambda: gas_y.in_units('kpc')[SUBSAMPLE],),
+            'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
+            'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE],),
+            'mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+            'velocity vx (km/s)': (lambda: gas_vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
+            'velocity vy (km/s)': (lambda: gas_vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
+            'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+        })
+    converted._data = tuple(converted._data)
+else:
+    converted._data = ({
+        'x-coordinate (kpc)': (lambda: x.in_units('kpc')[SUBSAMPLE],),
+        'y-coordinate (kpc)': (lambda: y.in_units('kpc')[SUBSAMPLE],),
+        'z-coordinate (kpc)': (lambda: z.in_units('kpc')[SUBSAMPLE],),
+        #'dust mass density (Msun/pc3)': (lambda: density.in_units('Msun/pc**3')[SUBSAMPLE]/nfrac_of_full_sample,),
+        'mass (Msun)': (lambda: mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+        'velocity vx (km/s)': (lambda: vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
+        'velocity vy (km/s)': (lambda: vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
+        'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+    },)
+
+frac_name = '' if nfrac_of_full_sample == 1 else "_n" + str(nfrac_of_full_sample).replace('.', '') # e.g. _n001 for 0.01 frac
+boxs_name = '_%dpc' % int(box_size_pc)
+pmpt_name = '_pmpt' if pmpt else ''
+voronoi_name = '_voronoi' if voronoi else ''
+
+name = "fif" + frac_name + boxs_name + pmpt_name + voronoi_name
+converted.write(name, ext=ext)
+
+an.LOGGER.info('Done! Saved at {}'.format(' and '.join([name + '_' + ptype + '.' + ext for ptype in converted._particle_types])))
 
