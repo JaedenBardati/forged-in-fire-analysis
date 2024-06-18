@@ -329,9 +329,11 @@ def integral_average(quantity, variable=None, weights=None, axis=None, already_s
         bot_integrand = 0.5*(sorted_weights[:-1] + sorted_weights[1:])
         bot_integral = (bot_integrand*dvariable).sum(axis=axis)
     else:
-        bot_integral = len(dvariable)
+        bot_integral = dvariable.sum(axis=axis)
 
     return top_integral/bot_integral
+
+integral_mean = integral_average  # alias
 
 def integral_variance(quantity, variable=None, weights=None, axis=None, already_sorted=False, mean=None):
     if not already_sorted:
@@ -358,9 +360,35 @@ def integral_variance(quantity, variable=None, weights=None, axis=None, already_
         bot_integrand = 0.5*(sorted_weights[:-1] + sorted_weights[1:])
         bot_integral = (bot_integrand*dvariable).sum(axis=axis)
     else:
-        bot_integral = len(dvariable)
+        bot_integral = dvariable.sum(axis=axis)
 
     return top_integral/bot_integral
+
+def integral_median(quantity, variable=None, weights=None, axis=None, already_sorted=False):
+    if len(quantity) == 0:
+        return np.nan
+    
+    if not already_sorted:
+        sorted_variable_args = np.argsort(variable)
+        sorted_quantity = quantity[sorted_variable_args]
+        sorted_variable = variable[sorted_variable_args]
+        if weights is not None:
+            sorted_weights = weights[sorted_variable_args]
+    else:
+        sorted_quantity = quantity
+        sorted_variable = variable
+        sorted_weights = weights
+
+    dvariable = np.diff(sorted_variable)
+
+    sorted_top_integrand = sorted_quantity*sorted_weights if weights is not None else sorted_quantity
+    top_integrand = 0.5*(sorted_top_integrand[:-1] + sorted_top_integrand[1:])
+    top_integral = (top_integrand*dvariable).cumsum(axis=axis)
+
+    integral_cumsum = top_integral
+    integral_cumsum_norm = integral_cumsum/integral_cumsum[-1]
+    median_arg = np.searchsorted(integral_cumsum_norm, 0.5)
+    return sorted_quantity[median_arg]
 
 
 ############## ABSTRACT CLASSES ##############
@@ -717,7 +745,7 @@ class ForgedInFireSnapshot(Snapshot):
     @staticmethod
     def _dust_to_gas_ratio(field, data):
         """This property gives the dust to gas ratio for each gas particle."""
-        Zsun = 0.012
+        Zsun = 0.0134
         T_dust = data[('PartType0', 'Dust_Temperature')]
         Z = data[('PartType0', 'metallicity')]
         return 0.01*(Z/Zsun)*np.exp(-T_dust/1500.)
