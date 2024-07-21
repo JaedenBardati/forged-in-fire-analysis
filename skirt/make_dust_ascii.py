@@ -111,24 +111,64 @@ class ASCII_SKIRT():
 ############################################################################################################################
 
 
-## LOAD DATA
-an.LOGGER.info('Loading data...')
 
+####################################
+############ PARAMETERS ############
 step = 334
 box_size_pc = 1  # 100
-width = 10*box_size_pc*an.pc
-box_cutoff = box_size_pc*an.pc # roughly an order of magnitude smaller than width --> box of output
+L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - Code to get L_1dpc: snap = an.load_fifs_box(step=step, width='0.1 pc'); L_1dpc = snap.gas_angular_momentum; an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc)); # at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
 
-L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" XD
-""" Code to get L_1dpc:
-snap = an.load_fifs_box(step=step, width='0.1 pc')
-L_1dpc = snap.gas_angular_momentum
-an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc))
-# at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
-"""
+output_dust = True
+output_gas = False  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
 
+nfrac_of_full_sample = 0.01  # default - 1 (all particles)
+mass_weighted = True  # NOTE this mass weights by dust mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
+pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extinction manually): default - yes
+
+maxTemp = None  # cut out all dust particles above a certain temperature: default - none
+voronoi = False  # voronoi binning: default - no
+
+ext = 'txt'
+####################################
+####################################
+an.LOGGER.info("## PARAMETERS ##")
+an.LOGGER.info(" Step: {}".format(step))
+an.LOGGER.info(" Box size: {} pc".format(box_size_pc))
+an.LOGGER.info(" Angular momentum vector (to rotate to): {}".format(L_1dpc))
+an.LOGGER.info("")
+an.LOGGER.info(" Output dust? {}".format('Y' if output_dust else 'N'))
+an.LOGGER.info(" Output gas separately? {}".format('Y' if output_gas else 'N'))
+an.LOGGER.info("")
+an.LOGGER.info(" Fraction of full sample used: {}".format(nfrac_of_full_sample))
+an.LOGGER.info(" Weight sampling by weight? {}".format('Y' if mass_weighted else 'N'))
+an.LOGGER.info(" Let SKIRT determine dust mass from metallicity and temperature? {}".format('Y' if pmpt else 'N'))
+an.LOGGER.info("")
+an.LOGGER.info(" Manual sublimation temperature of dust: {}".format(maxTemp))
+an.LOGGER.info(" Voronoi binning? {}".format('Y' if voronoi else 'N'))
+an.LOGGER.info("################")
+an.LOGGER.info("")
+
+assert not (pmpt and voronoi), "Voronoi and PMPT not implemented together."
+assert not (output_gas and voronoi), "Voronoi and gas output not implemented together."
+if output_gas and pmpt:
+    an.LOGGER.warning("You are outputting gas separately without manually specifying the dust mass (likely duplicate file)...")
+if maxTemp and pmpt:
+    an.LOGGER.warning("You are sublimating the dust without manually specifying the dust mass (likely duplicate file)...")
+
+width = box_size_pc*an.pc*np.sqrt(3)*2 # initial width cut (buffer before rotating and cutting again by real width), x2 is an extra buffer just in case
+box_cutoff = box_size_pc*an.pc # roughly an order of magnitude smaller than width --> box of output (used in skirt)
+
+frac_name = '' if nfrac_of_full_sample == 1 else "_n" + str(nfrac_of_full_sample).replace('.', '') # e.g. _n001 for 0.01 frac
+boxs_name = '_%dpc' % int(box_size_pc)
+pmpt_name = '_pmpt' if pmpt else ''
+weighted_name = '_mw' if mass_weighted and nfrac_of_full_sample != 1 else ''
+voronoi_name = '_voronoi' if voronoi else ''
+
+name = "fif" + frac_name + boxs_name + pmpt_name + weighted_name + voronoi_name
+
+
+## LOAD DATA
 snap = an.load_fifs_box(step=step, width=width)
-
 
 pos = snap.dust_centered_pos.in_units('kpc')
 x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1dpc) * pos.units).T  # rotate so faceon is in z direction
@@ -152,7 +192,6 @@ y_selection = np.logical_and(-box_cutoff < y, y < box_cutoff)
 z_selection = np.logical_and(-box_cutoff < z, z < box_cutoff)
 particle_selection = np.logical_and(np.logical_and(x_selection, y_selection), z_selection)
 
-maxTemp = None  # None
 if maxTemp is None:
     dust_selection = particle_selection
 else:
@@ -178,19 +217,7 @@ gas_temp = gas_temp[particle_selection]
 
 
 ## CONVERT DATA AND SAVE
-output_dust = True
-output_gas = False
-
-nfrac_of_full_sample = 0.01
-pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extinction manually)
-voronoi = False  # voronoi binning
-
-ext = 'ascii'
-
-
-an.LOGGER.info('Converting and saving data...')
-assert not (pmpt and voronoi), "Voronoi and PMPT not implemented together."
-assert not (output_gas and voronoi), "Voronoi and gas output not implemented together."
+an.LOGGER.info('Converting and saving data for "{}"...'.format(name))
 
 converted = ASCII_SKIRT()
 converted._particle_types = []
@@ -201,7 +228,9 @@ if output_gas:
 converted._particle_types = tuple(converted._particle_types)
 converted._comments = tuple(['Converted from the forged in Fire super-zoom-in AGN simulation.',]*len(converted._particle_types))
 
-SUBSAMPLE = np.random.choice(np.arange(len(mass)), size=int(len(mass)*nfrac_of_full_sample), replace=False) if nfrac_of_full_sample != 1 else slice(None)
+FULLSIZE = len(gas_mass)
+NEWSIZE = int(FULLSIZE*nfrac_of_full_sample)
+SUBSAMPLE = np.random.choice(np.arange(FULLSIZE), size=NEWSIZE, replace=False, p=gas_mass/gas_mass.sum() if mass_weighted else np.ones(FULLSIZE)/FULLSIZE) if nfrac_of_full_sample != 1 else slice(None)
 
 if not voronoi:
     converted._data = []
@@ -217,7 +246,18 @@ if not voronoi:
                 'temperature (K)': (lambda: temp[SUBSAMPLE],),  # still use dust temp here tho
                 'velocity vx (km/s)': (lambda: gas_vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vy (km/s)': (lambda: gas_vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-                'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+                'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],),
+                # 'bin 1 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                # 'bin 2 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                # 'bin 3 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                # 'silicate weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                # 'graphite weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                'silicate bin 1 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                'silicate bin 2 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                'silicate bin 3 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                'graphite bin 1 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                'graphite bin 2 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
+                'graphite bin 3 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
             })
         else:
             converted._data.append({     # manual dust mass calculation: no metalicity or temp provided to SKIRT
@@ -228,7 +268,10 @@ if not voronoi:
                 'mass (Msun)': (lambda: mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
                 'velocity vx (km/s)': (lambda: vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vy (km/s)': (lambda: vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-                'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+                'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],),
+                #'bin 1 weight (1)': (lambda: np.ones(len(mass[SUBSAMPLE])),),
+                #'bin 2 weight (1)': (lambda: np.ones(len(mass[SUBSAMPLE])),),
+                #'bin 3 weight (1)': (lambda: np.ones(len(mass[SUBSAMPLE])),),
             })
     if output_gas:
         converted._data.append({  # gas
@@ -254,13 +297,7 @@ else:
         'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
     },)
 
-frac_name = '' if nfrac_of_full_sample == 1 else "_n" + str(nfrac_of_full_sample).replace('.', '') # e.g. _n001 for 0.01 frac
-boxs_name = '_%dpc' % int(box_size_pc)
-pmpt_name = '_pmpt' if pmpt else ''
-voronoi_name = '_voronoi' if voronoi else ''
 
-name = "fif" + frac_name + boxs_name + pmpt_name + voronoi_name
 converted.write(name, ext=ext)
-
 an.LOGGER.info('Done! Saved at {}'.format(' and '.join([name + '_' + ptype + '.' + ext for ptype in converted._particle_types])))
 
