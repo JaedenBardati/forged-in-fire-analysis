@@ -121,7 +121,7 @@ L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - 
 output_dust = True
 output_gas = False  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
 
-nfrac_of_full_sample = 0.01  # default - 1 (all particles)
+nfrac_of_full_sample = 1  # default - 1 (all particles)
 mass_weighted = True  # NOTE this mass weights by dust mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
 pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extinction manually): default - yes
 
@@ -170,6 +170,7 @@ name = "fif" + frac_name + boxs_name + pmpt_name + weighted_name + voronoi_name
 ## LOAD DATA
 snap = an.load_fifs_box(step=step, width=width)
 
+
 pos = snap.dust_centered_pos.in_units('kpc')
 x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1dpc) * pos.units).T  # rotate so faceon is in z direction
 
@@ -186,6 +187,11 @@ gas_vel = vel.copy()
 
 gas_metallicity = snap[('PartType0', 'metallicity')]/0.0134  # convert from mass fraction to solar metallicity units
 gas_temp = snap[('PartType0', 'Temperature')]
+
+mass_H_protons = snap[('PartType0', 'Masses')]*(1.0 - snap[('PartType0', 'Metallicity_00')] - snap[('PartType0', 'Metallicity_01')])
+nr_H_protons = mass_H_protons/(1.67262192e-27*an.kg)
+nr_free_electrons = snap[('PartType0', 'ElectronAbundance')]*nr_H_protons
+
 
 x_selection = np.logical_and(-box_cutoff < x, x < box_cutoff)
 y_selection = np.logical_and(-box_cutoff < y, y < box_cutoff)
@@ -215,6 +221,10 @@ gas_vel = gas_vel[particle_selection]
 gas_metallicity = gas_metallicity[particle_selection]
 gas_temp = gas_temp[particle_selection]
 
+mass_H_protons = mass_H_protons[particle_selection]
+nr_H_protons = nr_H_protons[particle_selection]
+nr_free_electrons = nr_free_electrons[particle_selection]
+
 
 ## CONVERT DATA AND SAVE
 an.LOGGER.info('Converting and saving data for "{}"...'.format(name))
@@ -241,9 +251,10 @@ if not voronoi:
                 'y-coordinate (kpc)': (lambda: gas_y.in_units('kpc')[SUBSAMPLE],),
                 'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
                 'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
-                'gas mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
-                'metallicity (1)': (lambda: gas_metallicity[SUBSAMPLE],),
-                'temperature (K)': (lambda: temp[SUBSAMPLE],),  # still use dust temp here tho
+                'gas mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,), # for dust material only (to calculate dust mass)
+                'nr of electrons (1)': (lambda: nr_free_electrons.in_units('dimensionless')[SUBSAMPLE]/nfrac_of_full_sample,),  # for electron material only
+                'metallicity (1)': (lambda: gas_metallicity.in_units('dimensionless')[SUBSAMPLE],),
+                'temperature (K)': (lambda: temp.in_units('dimensionless')[SUBSAMPLE],),  # still use dust temp here tho, since this is used for the temperature of the dust
                 'velocity vx (km/s)': (lambda: gas_vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vy (km/s)': (lambda: gas_vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],),
