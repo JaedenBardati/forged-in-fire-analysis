@@ -735,12 +735,19 @@ class ForgedInFireSnapshot(Snapshot):
     DEFAULT_UNITSYSTEM = {'L': yt.units.parsec, 'M': yt.units.msun, 't': yt.units.year, 'T': yt.units.kelvin}
 
     BH_COORDS_PROP = ('PartType3','Coordinates')
+    BH_VELOCS_PROP = ('PartType3','Velocities')
 
     @property
     def BH_pos(self):
         centers = self.ad[self.BH_COORDS_PROP]
-        assert len(centers) == 1, 'It appears that PartType3 may not be the central BH!'
+        assert len(centers) == 1, 'It appears that are multiple MBHs! You may need to change BH_COORDS_PROP to the correct particle type.' 
         return centers[0]
+
+    @property
+    def BH_vel(self):
+        vels = self.ad[self.BH_VELOCS_PROP]
+        assert len(vels) == 1, 'It appears that are multiple MBHs! You may need to change BH_VELOCS_PROP to the correct particle type.' 
+        return vels[0]
 
     @staticmethod
     def _dust_to_gas_ratio(field, data):
@@ -794,6 +801,10 @@ class ForgedInFireSnapshot(Snapshot):
     @lazyproperty
     def dust_centered_pos(self):
         return (self[('Dust', 'Coordinates')] - self.BH_pos).in_units('pc')
+
+    @lazyproperty
+    def dust_centered_vel(self):
+        return (self[('Dust', 'Velocities')] - self.BH_vel).in_units('km*s**-1')
 
     @lazyproperty
     def dust_radius(self):

@@ -120,6 +120,8 @@ L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - 
 
 output_dust = True
 output_gas = False  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
+#output_stars_FIRE = False       # output separate stars medium for the coarse, FIRE simulation stellar populations
+#output_stars_STARFORGED = False # output separate stars medium, for the fine, STARFORGED simulation stars/sinks
 
 nfrac_of_full_sample = 1  # default - 1 (all particles)
 mass_weighted = True  # NOTE this mass weights by dust mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
@@ -171,19 +173,20 @@ name = "fif" + frac_name + boxs_name + pmpt_name + weighted_name + voronoi_name
 snap = an.load_fifs_box(step=step, width=width)
 
 
-pos = snap.dust_centered_pos.in_units('kpc')
+pos = snap.dust_centered_pos.in_units('kpc')  # centers BH to origin
+vel = snap.dust_centered_vel.in_units('km*s**-1')  # enforces BH to have zero velocity 
 x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1dpc) * pos.units).T  # rotate so faceon is in z direction
+vx, vy, vz = (an.translate_and_rotate_vectors(vel, zdir=L_1dpc) * vel.units).T  # velocity rotates like position
 
 smooth = snap[('PartType0', 'SmoothingLength')].in_units('kpc')
 mass = snap[('Dust', 'mass')].in_units('Msun')
 density = snap[('Dust', 'density')].in_units('Msun/pc**3')
-vel = snap[('Dust', 'Velocities')].in_units('km*s**-1')
 temp = snap[("Dust", "Temperature")]
 
 gas_x, gas_y, gas_z = x.copy(), y.copy(), z.copy()
+gas_vx, gas_vy, gas_vz = vx.copy(), vy.copy(), vz.copy()
 gas_smooth = smooth.copy()
 gas_mass = snap[('PartType0', 'mass')].in_units('Msun')
-gas_vel = vel.copy()
 
 gas_metallicity = snap[('PartType0', 'metallicity')]/0.0134  # convert from mass fraction to solar metallicity units
 gas_temp = snap[('PartType0', 'Temperature')]
@@ -207,17 +210,21 @@ else:
 x = x[dust_selection]
 y = y[dust_selection]
 z = z[dust_selection]
+vx = vx[dust_selection]
+vy = vy[dust_selection]
+vz = vz[dust_selection]
 smooth = smooth[dust_selection]
 mass = mass[dust_selection]
-vel = vel[dust_selection]
 temp = temp[dust_selection]
 
 gas_x = gas_x[particle_selection]
 gas_y = gas_y[particle_selection]
 gas_z = gas_z[particle_selection]
+gas_vx = gas_vx[particle_selection]
+gas_vy = gas_vy[particle_selection]
+gas_vz = gas_vz[particle_selection]
 gas_smooth = gas_smooth[particle_selection]
 gas_mass = gas_mass[particle_selection]
-gas_vel = gas_vel[particle_selection]
 gas_metallicity = gas_metallicity[particle_selection]
 gas_temp = gas_temp[particle_selection]
 
@@ -255,9 +262,9 @@ if not voronoi:
                 'nr of electrons (1)': (lambda: nr_free_electrons.in_units('dimensionless')[SUBSAMPLE]/nfrac_of_full_sample,),  # for electron material only
                 'metallicity (1)': (lambda: gas_metallicity.in_units('dimensionless')[SUBSAMPLE],),
                 'temperature (K)': (lambda: temp.in_units('dimensionless')[SUBSAMPLE],),  # still use dust temp here tho, since this is used for the temperature of the dust
-                'velocity vx (km/s)': (lambda: gas_vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
-                'velocity vy (km/s)': (lambda: gas_vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-                'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vx (km/s)': (lambda: gas_vx.in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vy (km/s)': (lambda: gas_vy.in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vz (km/s)': (lambda: gas_vz.in_units('km*s**-1')[SUBSAMPLE],),
                 # 'bin 1 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
                 # 'bin 2 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
                 # 'bin 3 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
@@ -277,9 +284,9 @@ if not voronoi:
                 'z-coordinate (kpc)': (lambda: z.in_units('kpc')[SUBSAMPLE],),
                 'smoothing length (kpc)': (lambda: smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
                 'mass (Msun)': (lambda: mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
-                'velocity vx (km/s)': (lambda: vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
-                'velocity vy (km/s)': (lambda: vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-                'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vx (km/s)': (lambda: vx.in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vy (km/s)': (lambda: vy.in_units('km*s**-1')[SUBSAMPLE],),
+                'velocity vz (km/s)': (lambda: vz.in_units('km*s**-1')[SUBSAMPLE],),
                 #'bin 1 weight (1)': (lambda: np.ones(len(mass[SUBSAMPLE])),),
                 #'bin 2 weight (1)': (lambda: np.ones(len(mass[SUBSAMPLE])),),
                 #'bin 3 weight (1)': (lambda: np.ones(len(mass[SUBSAMPLE])),),
@@ -291,9 +298,9 @@ if not voronoi:
             'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
             'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE],),
             'mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
-            'velocity vx (km/s)': (lambda: gas_vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
-            'velocity vy (km/s)': (lambda: gas_vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-            'velocity vz (km/s)': (lambda: gas_vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+            'velocity vx (km/s)': (lambda: gas_vx.in_units('km*s**-1')[SUBSAMPLE],),
+            'velocity vy (km/s)': (lambda: gas_vy.in_units('km*s**-1')[SUBSAMPLE],),
+            'velocity vz (km/s)': (lambda: gas_vz.in_units('km*s**-1')[SUBSAMPLE],)
         })
     converted._data = tuple(converted._data)
 else:
@@ -303,9 +310,9 @@ else:
         'z-coordinate (kpc)': (lambda: z.in_units('kpc')[SUBSAMPLE],),
         #'dust mass density (Msun/pc3)': (lambda: density.in_units('Msun/pc**3')[SUBSAMPLE]/nfrac_of_full_sample,),
         'mass (Msun)': (lambda: mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
-        'velocity vx (km/s)': (lambda: vel[:,0].in_units('km*s**-1')[SUBSAMPLE],),
-        'velocity vy (km/s)': (lambda: vel[:,1].in_units('km*s**-1')[SUBSAMPLE],),
-        'velocity vz (km/s)': (lambda: vel[:,2].in_units('km*s**-1')[SUBSAMPLE],)
+        'velocity vx (km/s)': (lambda: vx.in_units('km*s**-1')[SUBSAMPLE],),
+        'velocity vy (km/s)': (lambda: vy.in_units('km*s**-1')[SUBSAMPLE],),
+        'velocity vz (km/s)': (lambda: vz.in_units('km*s**-1')[SUBSAMPLE],)
     },)
 
 
