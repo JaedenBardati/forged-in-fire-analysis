@@ -8,6 +8,7 @@ spec.loader.exec_module(an)
 
 import numpy as np
 import yt
+from sklearn.neighbors import NearestNeighbors
 
 ######################## copied from (my) cosmo-sim-converter on GitHub, with some modification (only feature removed is log_timings in write, and the object inheritance) ######################################
 class ASCII_SKIRT():
@@ -273,6 +274,12 @@ if output_gas or output_gas:
     nr_H_protons = nr_H_protons[particle_selection]
     nr_free_electrons = nr_free_electrons[particle_selection]
 
+
+if output_stars_FIRE or output_stars_STARFORGED:
+    # fit a nearest neighbours tree to gas particles to quickly find smoothing length approx
+    knn = NearestNeighbors(n_neighbors=64)
+    knn.fit(np.vstack([gas_x, gas_y, gas_z]).T)
+
 if output_stars_FIRE:
     sf_x = sf_x[particle_selection2]
     sf_y = sf_y[particle_selection2]
@@ -285,6 +292,9 @@ if output_stars_FIRE:
     sf_metallicity = sf_metallicity[particle_selection2]
     sf_age = sf_age[particle_selection2]
 
+    sf_distance_mat, sf_neighbours_mat = knn.kneighbors(np.vstack([sf_x, sf_y, sf_z]).T)
+    sf_smooth = sf_distance_mat[:, -1]*an.pc
+
 if output_stars_STARFORGED:
     ss_x = ss_x[particle_selection3]
     ss_y = ss_y[particle_selection3]
@@ -296,6 +306,9 @@ if output_stars_STARFORGED:
     ss_mass = ss_mass[particle_selection3]
     ss_radius = ss_radius[particle_selection3]
     ss_temp = ss_temp[particle_selection3]
+
+    ss_distance_mat, ss_neighbours_mat = knn.kneighbors(np.vstack([ss_x, ss_y, ss_z]).T)
+    ss_smooth = ss_distance_mat[:, -1]*an.pc
 
 ## CONVERT DATA AND SAVE
 an.LOGGER.info('Converting and saving data for "{}"...'.format(name))
@@ -378,7 +391,7 @@ if not voronoi:
             'x-coordinate (kpc)': (lambda: sf_x.in_units('kpc')[SUBSAMPLE2],),
             'y-coordinate (kpc)': (lambda: sf_y.in_units('kpc')[SUBSAMPLE2],),
             'z-coordinate (kpc)': (lambda: sf_z.in_units('kpc')[SUBSAMPLE2],),
-            'smoothing length (kpc)': (lambda: np.ones(NEWSIZE2),),   # dummy variable since this should not matter for the RT
+            'smoothing length (kpc)': (lambda: sf_smooth,),
             'velocity vx (km/s)': (lambda: sf_vx.in_units('km*s**-1')[SUBSAMPLE2],),
             'velocity vy (km/s)': (lambda: sf_vy.in_units('km*s**-1')[SUBSAMPLE2],),
             'velocity vz (km/s)': (lambda: sf_vz.in_units('km*s**-1')[SUBSAMPLE2],),
@@ -391,7 +404,7 @@ if not voronoi:
             'x-coordinate (kpc)': (lambda: ss_x.in_units('kpc')[SUBSAMPLE3],),
             'y-coordinate (kpc)': (lambda: ss_y.in_units('kpc')[SUBSAMPLE3],),
             'z-coordinate (kpc)': (lambda: ss_z.in_units('kpc')[SUBSAMPLE3],),
-            'smoothing length (kpc)': (lambda: np.ones(NEWSIZE3),),   # dummy variable since this should not matter for the RT
+            'smoothing length (kpc)': (lambda: ss_smooth,),
             'velocity vx (km/s)': (lambda: ss_vx.in_units('km*s**-1')[SUBSAMPLE3],),
             'velocity vy (km/s)': (lambda: ss_vy.in_units('km*s**-1')[SUBSAMPLE3],),
             'velocity vz (km/s)': (lambda: ss_vz.in_units('km*s**-1')[SUBSAMPLE3],),
