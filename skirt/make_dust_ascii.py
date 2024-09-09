@@ -379,12 +379,12 @@ if not voronoi:
             'y-coordinate (kpc)': (lambda: sf_y.in_units('kpc')[SUBSAMPLE2],),
             'z-coordinate (kpc)': (lambda: sf_z.in_units('kpc')[SUBSAMPLE2],),
             'smoothing length (kpc)': (lambda: np.ones(NEWSIZE2),),   # dummy variable since this should not matter for the RT
-            'mass (Msun)': (lambda: sf_mass.in_units('Msun')[SUBSAMPLE2]/nfrac_of_full_sample,), 
-            'metallicity (1)': (lambda: sf_metallicity.in_units('dimensionless')[SUBSAMPLE2],),
-            'age (Gyr)': (lambda: sf_age.in_units('Gyr')[SUBSAMPLE2],),
             'velocity vx (km/s)': (lambda: sf_vx.in_units('km*s**-1')[SUBSAMPLE2],),
             'velocity vy (km/s)': (lambda: sf_vy.in_units('km*s**-1')[SUBSAMPLE2],),
             'velocity vz (km/s)': (lambda: sf_vz.in_units('km*s**-1')[SUBSAMPLE2],),
+            'mass (Msun)': (lambda: sf_mass.in_units('Msun')[SUBSAMPLE2]/nfrac_of_full_sample,), 
+            'metallicity (1)': (lambda: sf_metallicity.in_units('dimensionless')[SUBSAMPLE2],),
+            'age (Gyr)': (lambda: sf_age.in_units('Gyr')[SUBSAMPLE2],),
         })
     if output_stars_STARFORGED:  # blackbody stars
         converted._data.append({
@@ -392,12 +392,12 @@ if not voronoi:
             'y-coordinate (kpc)': (lambda: ss_y.in_units('kpc')[SUBSAMPLE3],),
             'z-coordinate (kpc)': (lambda: ss_z.in_units('kpc')[SUBSAMPLE3],),
             'smoothing length (kpc)': (lambda: np.ones(NEWSIZE3),),   # dummy variable since this should not matter for the RT
-            'mass (Msun)': (lambda: ss_mass.in_units('Msun')[SUBSAMPLE3]/nfrac_of_full_sample,), 
-            'radius (km)': (lambda: ss_radius.in_units('km')[SUBSAMPLE3],),
-            'temperature (K)': (lambda: ss_temp.in_units('dimensionless')[SUBSAMPLE3],),
             'velocity vx (km/s)': (lambda: ss_vx.in_units('km*s**-1')[SUBSAMPLE3],),
             'velocity vy (km/s)': (lambda: ss_vy.in_units('km*s**-1')[SUBSAMPLE3],),
             'velocity vz (km/s)': (lambda: ss_vz.in_units('km*s**-1')[SUBSAMPLE3],),
+            # 'mass (Msun)': (lambda: ss_mass.in_units('Msun')[SUBSAMPLE3]/nfrac_of_full_sample,), 
+            'radius (km)': (lambda: ss_radius.in_units('km')[SUBSAMPLE3],),
+            'temperature (K)': (lambda: ss_temp.in_units('dimensionless')[SUBSAMPLE3],),
         })
     converted._data = tuple(converted._data)
 else:
