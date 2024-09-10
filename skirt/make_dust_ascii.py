@@ -116,13 +116,13 @@ class ASCII_SKIRT():
 ####################################
 ############ PARAMETERS ############
 step = 334
-box_size_pc = 30000  # 100
+box_size_pc = 3000  # 100
 L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - Code to get L_1dpc: snap = an.load_fifs_box(step=step, width='0.1 pc'); L_1dpc = snap.gas_angular_momentum; an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc)); # at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
 
-output_dust = False
+output_dust = True
 output_gas = False  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
-output_stars_FIRE = True       # output separate stars medium for the coarse, FIRE simulation stellar populations
-output_stars_STARFORGED = True # output separate stars medium, for the fine, STARFORGED simulation stars/sinks
+output_stars_FIRE = False       # output separate stars medium for the coarse, FIRE simulation stellar populations
+output_stars_STARFORGED = False # output separate stars medium, for the fine, STARFORGED simulation stars/sinks
 
 nfrac_of_full_sample = 1  # default - 1 (all particles)
 mass_weighted = True  # NOTE this mass weights by dust mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
@@ -176,7 +176,7 @@ name = directory + "fif" + frac_name + boxs_name + pmpt_name + weighted_name + v
 ## LOAD DATA
 snap = an.load_fifs_box(step=step, width=width)
 
-if output_gas or output_gas:
+if output_dust or output_gas:
     pos = snap.dust_centered_pos.in_units('kpc')  # centers BH to origin
     vel = snap.dust_centered_vel.in_units('km*s**-1')  # enforces BH to have zero velocity 
     x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1dpc) * pos.units).T  # rotate so faceon is in z direction
@@ -233,11 +233,11 @@ if output_stars_STARFORGED:
     ss_knn = NearestNeighbors(n_neighbors=ss_n_neighbours)
     ss_knn.fit(ss_coords)
     ss_distance_mat = ss_knn.kneighbors(ss_coords)[0]
-    ss_smooth = ss_distance_mat[:, -1]*((64./ss_n_neighbours)**(1/3.))  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
-    ss_smooth = np.max([ss_radius*np.ones(ss_smooth.shape), ss_smooth], axis=0)*an.kpc  # ensure that the smoothing length is larger than the protostar radius
+    ss_smooth = ss_distance_mat[:, -1]*((64./ss_n_neighbours)**(1/3.))*an.kpc  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
+    ss_smooth = np.max([ss_radius.in_units('kpc')*np.ones(ss_smooth.shape), ss_smooth.in_units('kpc')], axis=0)*an.kpc  # ensure that the smoothing length is larger than the protostar radius
 
 
-if output_gas or output_gas:
+if output_dust or output_gas:
     x_selection = np.logical_and(-box_cutoff < x, x < box_cutoff)
     y_selection = np.logical_and(-box_cutoff < y, y < box_cutoff)
     z_selection = np.logical_and(-box_cutoff < z, z < box_cutoff)
@@ -262,7 +262,7 @@ if output_stars_STARFORGED:
     particle_selection3 = np.logical_and(np.logical_and(x_selection3, y_selection3), z_selection3)
 
 
-if output_gas or output_gas:
+if output_dust or output_gas:
     x = x[dust_selection]
     y = y[dust_selection]
     z = z[dust_selection]
