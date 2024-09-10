@@ -209,6 +209,14 @@ if output_stars_FIRE:
     sf_metallicity = snap[('PartType4', 'metallicity')]
     sf_age = snap[('PartType4', 'age')].in_units('Gyr')
 
+    # fit a nearest neighbours tree to gas particles to quickly find smoothing length approx
+    sf_n_neighbours = min(64, len(sf_mass))
+    sf_coords = np.vstack([sf_x.in_units('kpc'), sf_y.in_units('kpc'), sf_z.in_units('kpc')]).T
+    sf_knn = NearestNeighbors(n_neighbors=sf_n_neighbours)
+    sf_knn.fit(sf_coords)
+    sf_distance_mat = sf_knn.kneighbors(sf_coords)[0]
+    sf_smooth = sf_distance_mat[:, -1]*((64./sf_n_neighbours)**(1/3.))*an.kpc  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
+
 if output_stars_STARFORGED:
     ss_pos = (snap[('PartType5', 'Coordinates')] - snap.BH_pos).in_units('pc')
     ss_vel = (snap[('PartType5', 'Velocities')] - snap.BH_vel).in_units('km*s**-1')
@@ -219,6 +227,14 @@ if output_stars_STARFORGED:
     ss_radius = (snap[('PartType5', 'ProtoStellarRadius_inSolar')])*696340.*an.km
     ss_temp = 5780*((snap[('PartType5', 'StarLuminosity_Solar')])**0.25)*((snap[('PartType5', 'ProtoStellarRadius_inSolar')])**-0.5)
 
+    # fit a nearest neighbours tree to gas particles to quickly find smoothing length approx
+    ss_n_neighbours = min(64, len(ss_mass))
+    ss_coords = np.vstack([ss_x.in_units('kpc'), ss_y.in_units('kpc'), ss_z.in_units('kpc')]).T
+    ss_knn = NearestNeighbors(n_neighbors=ss_n_neighbours)
+    ss_knn.fit(ss_coords)
+    ss_distance_mat = ss_knn.kneighbors(ss_coords)[0]
+    ss_smooth = ss_distance_mat[:, -1]*((64./ss_n_neighbours)**(1/3.))  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
+    ss_smooth = np.max([ss_radius*np.ones(ss_smooth.shape), ss_smooth], axis=0)*an.kpc  # ensure that the smoothing length is larger than the protostar radius
 
 
 if output_gas or output_gas:
@@ -282,17 +298,10 @@ if output_stars_FIRE:
     sf_vy = sf_vy[particle_selection2]
     sf_vz = sf_vz[particle_selection2]
 
+    sf_smooth = sf_smooth[particle_selection2]
     sf_mass = sf_mass[particle_selection2]
     sf_metallicity = sf_metallicity[particle_selection2]
     sf_age = sf_age[particle_selection2]
-
-    # fit a nearest neighbours tree to gas particles to quickly find smoothing length approx
-    sf_n_neighbours = np.min(64, len(sf_mass))
-    sf_coords = np.vstack([sf_x.in_units('kpc'), sf_y.in_units('kpc'), sf_z.in_units('kpc')]).T
-    sf_knn = NearestNeighbors(n_neighbors=sf_n_neighbours)
-    sf_knn.fit(sf_coords)
-    sf_distance_mat = sf_knn.kneighbors(sf_coords)[0]
-    sf_smooth = sf_distance_mat[:, -1]*((64./sf_n_neighbours)**(1/3.))*an.kpc  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
 
 if output_stars_STARFORGED:
     ss_x = ss_x[particle_selection3]
@@ -302,17 +311,11 @@ if output_stars_STARFORGED:
     ss_vy = ss_vy[particle_selection3]
     ss_vz = ss_vz[particle_selection3]
 
+    ss_smooth = ss_smooth[particle_selection3]
     ss_mass = ss_mass[particle_selection3]
     ss_radius = ss_radius[particle_selection3]
     ss_temp = ss_temp[particle_selection3]
 
-    # fit a nearest neighbours tree to gas particles to quickly find smoothing length approx
-    ss_n_neighbours = np.min(64, len(ss_mass))
-    ss_coords = np.vstack([ss_x.in_units('kpc'), ss_y.in_units('kpc'), ss_z.in_units('kpc')]).T
-    ss_knn = NearestNeighbors(n_neighbors=ss_n_neighbours)
-    ss_knn.fit(ss_coords)
-    ss_distance_mat = ss_knn.kneighbors(ss_coords)[0]
-    ss_smooth = ss_distance_mat[:, -1]*((64./ss_n_neighbours)**(1/3.))*an.kpc  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
 
 ## CONVERT DATA AND SAVE
 an.LOGGER.info('Converting and saving data for "{}"...'.format(name))
@@ -384,7 +387,7 @@ if not voronoi:
             'x-coordinate (kpc)': (lambda: gas_x.in_units('kpc')[SUBSAMPLE],),
             'y-coordinate (kpc)': (lambda: gas_y.in_units('kpc')[SUBSAMPLE],),
             'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
-            'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE],),
+            'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
             'mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
             'velocity vx (km/s)': (lambda: gas_vx.in_units('km*s**-1')[SUBSAMPLE],),
             'velocity vy (km/s)': (lambda: gas_vy.in_units('km*s**-1')[SUBSAMPLE],),
@@ -395,7 +398,7 @@ if not voronoi:
             'x-coordinate (kpc)': (lambda: sf_x.in_units('kpc')[SUBSAMPLE2],),
             'y-coordinate (kpc)': (lambda: sf_y.in_units('kpc')[SUBSAMPLE2],),
             'z-coordinate (kpc)': (lambda: sf_z.in_units('kpc')[SUBSAMPLE2],),
-            'smoothing length (kpc)': (lambda: sf_smooth.in_units('kpc')[SUBSAMPLE2],),
+            'smoothing length (kpc)': (lambda: sf_smooth.in_units('kpc')[SUBSAMPLE2]/pow(nfrac_of_full_sample, 1/3.0),),
             'velocity vx (km/s)': (lambda: sf_vx.in_units('km*s**-1')[SUBSAMPLE2],),
             'velocity vy (km/s)': (lambda: sf_vy.in_units('km*s**-1')[SUBSAMPLE2],),
             'velocity vz (km/s)': (lambda: sf_vz.in_units('km*s**-1')[SUBSAMPLE2],),
@@ -408,13 +411,13 @@ if not voronoi:
             'x-coordinate (kpc)': (lambda: ss_x.in_units('kpc')[SUBSAMPLE3],),
             'y-coordinate (kpc)': (lambda: ss_y.in_units('kpc')[SUBSAMPLE3],),
             'z-coordinate (kpc)': (lambda: ss_z.in_units('kpc')[SUBSAMPLE3],),
-            'smoothing length (kpc)': (lambda: ss_smooth.in_units('kpc')[SUBSAMPLE3],),
+            'smoothing length (kpc)': (lambda: ss_smooth.in_units('kpc')[SUBSAMPLE3]/pow(nfrac_of_full_sample, 1/3.0),),
             'velocity vx (km/s)': (lambda: ss_vx.in_units('km*s**-1')[SUBSAMPLE3],),
             'velocity vy (km/s)': (lambda: ss_vy.in_units('km*s**-1')[SUBSAMPLE3],),
             'velocity vz (km/s)': (lambda: ss_vz.in_units('km*s**-1')[SUBSAMPLE3],),
-            # 'mass (Msun)': (lambda: ss_mass.in_units('Msun')[SUBSAMPLE3]/nfrac_of_full_sample,), 
             'radius (km)': (lambda: ss_radius.in_units('km')[SUBSAMPLE3],),
             'temperature (K)': (lambda: ss_temp.in_units('dimensionless')[SUBSAMPLE3],),
+            # 'mass (Msun)': (lambda: ss_mass.in_units('Msun')[SUBSAMPLE3]/nfrac_of_full_sample,), 
         })
     converted._data = tuple(converted._data)
 else:
