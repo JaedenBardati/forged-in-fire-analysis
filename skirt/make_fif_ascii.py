@@ -116,16 +116,16 @@ class ASCII_SKIRT():
 ####################################
 ############ PARAMETERS ############
 step = 334
-box_size_pc = 3000  # 100
+box_size_pc = 1 #3000  # 100
 L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - Code to get L_1dpc: snap = an.load_fifs_box(step=step, width='0.1 pc'); L_1dpc = snap.gas_angular_momentum; an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc)); # at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
 
-output_dust = True
-output_gas = False  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
+output_dust = False
+output_gas = True  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
 output_stars_FIRE = False       # output separate stars medium for the coarse, FIRE simulation stellar populations
 output_stars_STARFORGED = False # output separate stars medium, for the fine, STARFORGED simulation stars/sinks
 
 nfrac_of_full_sample = 1  # default - 1 (all particles)
-mass_weighted = True  # NOTE this mass weights by dust mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
+mass_weighted = True  # NOTE this mass weights by gas mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
 pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extinction manually): default - yes
 
 maxTemp = None  # cut out all dust particles above a certain temperature: default - none
@@ -166,7 +166,7 @@ box_cutoff = box_size_pc*an.pc # roughly an order of magnitude smaller than widt
 
 frac_name = '' if nfrac_of_full_sample == 1 else "_n" + str(nfrac_of_full_sample).replace('.', '') # e.g. _n001 for 0.01 frac
 boxs_name = '_%dpc' % int(box_size_pc)
-pmpt_name = '_pmpt' if pmpt and (output_dust or output_gas) else ''
+pmpt_name = '_pmpt' if pmpt and output_dust else ''
 weighted_name = '_mw' if mass_weighted and nfrac_of_full_sample != 1 else ''
 voronoi_name = '_voronoi' if voronoi else ''
 
@@ -358,7 +358,8 @@ if not voronoi:
                 'gas mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,), # for dust material only (to calculate dust mass)
                 'nr of electrons (1)': (lambda: nr_free_electrons.in_units('dimensionless')[SUBSAMPLE]/nfrac_of_full_sample,),  # for electron material only
                 'metallicity (1)': (lambda: gas_metallicity.in_units('dimensionless')[SUBSAMPLE],),
-                'temperature (K)': (lambda: temp.in_units('dimensionless')[SUBSAMPLE],),  # still use dust temp here tho, since this is used for the temperature of the dust
+                'temperature (K)': (lambda: temp.in_units('dimensionless')[SUBSAMPLE],), 
+                'gas temperature (K)': (lambda: gas_temp.in_units('dimensionless')[SUBSAMPLE],), # also ~ electron temperature
                 'velocity vx (km/s)': (lambda: gas_vx.in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vy (km/s)': (lambda: gas_vy.in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vz (km/s)': (lambda: gas_vz.in_units('km*s**-1')[SUBSAMPLE],),
@@ -389,6 +390,9 @@ if not voronoi:
             'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
             'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
             'mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+            'temperature (K)': (lambda: gas_temp.in_units('dimensionless')[SUBSAMPLE],), 
+            'density (Msun/pc^3)': (lambda: gas_density.in_units('Msun*pc**-3')[SUBSAMPLE],),
+            'nr of electrons (1)': (lambda: nr_free_electrons.in_units('dimensionless')[SUBSAMPLE]/nfrac_of_full_sample,),  # for electron material only
             'velocity vx (km/s)': (lambda: gas_vx.in_units('km*s**-1')[SUBSAMPLE],),
             'velocity vy (km/s)': (lambda: gas_vy.in_units('km*s**-1')[SUBSAMPLE],),
             'velocity vz (km/s)': (lambda: gas_vz.in_units('km*s**-1')[SUBSAMPLE],)
