@@ -116,16 +116,16 @@ class ASCII_SKIRT():
 ####################################
 ############ PARAMETERS ############
 step = 334
-box_size_pc = 1 #3000  # 100
+box_size_pc = 3000  # 100
 L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - Code to get L_1dpc: snap = an.load_fifs_box(step=step, width='0.1 pc'); L_1dpc = snap.gas_angular_momentum; an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc)); # at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
 
-output_dust = False
-output_gas = True  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
+output_dust = True
+output_gas = False  # only relevant if manually specifying dust mass (not through skirt, i.e. pmpt is false): default - no
 output_stars_FIRE = False       # output separate stars medium for the coarse, FIRE simulation stellar populations
-output_stars_STARFORGED = False # output separate stars medium, for the fine, STARFORGED simulation stars/sinks
+output_stars_STARFORGE = False # output separate stars medium, for the fine, STARFORGED simulation stars/sinks
 
 nfrac_of_full_sample = 1  # default - 1 (all particles)
-mass_weighted = True  # NOTE this mass weights by gas mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
+mass_weighted = True  # NOTE this mass weights dust by gas mass! ONLY DOES ANYTHING IF nfrac_of_full_sample != 1: default - yes
 pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extinction manually): default - yes
 
 maxTemp = None  # cut out all dust particles above a certain temperature: default - none
@@ -143,10 +143,10 @@ an.LOGGER.info("")
 an.LOGGER.info(" Output dust? {}".format('Y' if output_dust else 'N'))
 an.LOGGER.info(" Output gas separately? {}".format('Y' if output_gas else 'N'))
 an.LOGGER.info(" Output FIRE stars? {}".format('Y' if output_stars_FIRE else 'N'))
-an.LOGGER.info(" Output STARFORGED stars? {}".format('Y' if output_stars_STARFORGED else 'N'))
+an.LOGGER.info(" Output STARFORGED stars? {}".format('Y' if output_stars_STARFORGE else 'N'))
 an.LOGGER.info("")
 an.LOGGER.info(" Fraction of full sample used: {}".format(nfrac_of_full_sample))
-an.LOGGER.info(" Weight sampling by weight? {}".format('Y' if mass_weighted else 'N'))
+an.LOGGER.info(" Weight sampling by mass? {}".format('Y' if mass_weighted else 'N'))
 an.LOGGER.info(" Let SKIRT determine dust mass from metallicity and temperature? {}".format('Y' if pmpt else 'N'))
 an.LOGGER.info("")
 an.LOGGER.info(" Manual sublimation temperature of dust: {}".format(maxTemp))
@@ -156,6 +156,8 @@ an.LOGGER.info("")
 
 assert not (pmpt and voronoi), "Voronoi and PMPT not implemented together."
 assert not (output_gas and voronoi), "Voronoi and gas output not implemented together."
+assert not (output_stars_FIRE and voronoi), "Voronoi and FIRE stars output not implemented together."
+assert not (output_stars_STARFORGE and voronoi), "Voronoi and STARFORGE stars output not implemented together."
 if output_gas and pmpt:
     an.LOGGER.warning("You are outputting gas separately without manually specifying the dust mass (likely duplicate file)...")
 if maxTemp and pmpt:
@@ -217,7 +219,7 @@ if output_stars_FIRE:
     sf_distance_mat = sf_knn.kneighbors(sf_coords)[0]
     sf_smooth = sf_distance_mat[:, -1]*((64./sf_n_neighbours)**(1/3.))*an.kpc  # use distance to 64th nearest particle, scaled appropriately if less than 64 neighbours
 
-if output_stars_STARFORGED:
+if output_stars_STARFORGE:
     ss_pos = (snap[('PartType5', 'Coordinates')] - snap.BH_pos).in_units('pc')
     ss_vel = (snap[('PartType5', 'Velocities')] - snap.BH_vel).in_units('km*s**-1')
     ss_x, ss_y, ss_z = (an.translate_and_rotate_vectors(ss_pos, zdir=L_1dpc) * ss_pos.units).T  # rotate so faceon is in z direction
@@ -255,7 +257,7 @@ if output_stars_FIRE:
     z_selection2 = np.logical_and(-box_cutoff < sf_z, sf_z < box_cutoff)
     particle_selection2 = np.logical_and(np.logical_and(x_selection2, y_selection2), z_selection2)
 
-if output_stars_STARFORGED:
+if output_stars_STARFORGE:
     x_selection3 = np.logical_and(-box_cutoff < ss_x, ss_x < box_cutoff)
     y_selection3 = np.logical_and(-box_cutoff < ss_y, ss_y < box_cutoff)
     z_selection3 = np.logical_and(-box_cutoff < ss_z, ss_z < box_cutoff)
@@ -303,7 +305,7 @@ if output_stars_FIRE:
     sf_metallicity = sf_metallicity[particle_selection2]
     sf_age = sf_age[particle_selection2]
 
-if output_stars_STARFORGED:
+if output_stars_STARFORGE:
     ss_x = ss_x[particle_selection3]
     ss_y = ss_y[particle_selection3]
     ss_z = ss_z[particle_selection3]
@@ -328,7 +330,7 @@ if output_gas:
     converted._particle_types.append('gas')
 if output_stars_FIRE:
     converted._particle_types.append('stars_FIRE')
-if output_stars_STARFORGED:
+if output_stars_STARFORGE:
     converted._particle_types.append('stars_STARFORGED')
 converted._particle_types = tuple(converted._particle_types)
 converted._comments = tuple(['Converted from the forged in Fire super-zoom-in AGN simulation.',]*len(converted._particle_types))
@@ -341,7 +343,7 @@ if output_stars_FIRE:
     FULLSIZE2 = len(sf_mass)
     NEWSIZE2 = int(FULLSIZE2*nfrac_of_full_sample)
     SUBSAMPLE2 = np.random.choice(np.arange(FULLSIZE2), size=NEWSIZE2, replace=False, p=sf_mass/sf_mass.sum() if mass_weighted else np.ones(FULLSIZE2)/FULLSIZE2) if nfrac_of_full_sample != 1 else slice(None)
-if output_stars_STARFORGED:
+if output_stars_STARFORGE:
     FULLSIZE3 = len(ss_mass)
     NEWSIZE3 = int(FULLSIZE3*nfrac_of_full_sample)
     SUBSAMPLE3 = np.random.choice(np.arange(FULLSIZE3), size=NEWSIZE3, replace=False, p=ss_mass/ss_mass.sum() if mass_weighted else np.ones(FULLSIZE3)/FULLSIZE3) if nfrac_of_full_sample != 1 else slice(None)
@@ -410,7 +412,7 @@ if not voronoi:
             'metallicity (1)': (lambda: sf_metallicity.in_units('dimensionless')[SUBSAMPLE2],),
             'age (Gyr)': (lambda: sf_age.in_units('Gyr')[SUBSAMPLE2],),
         })
-    if output_stars_STARFORGED:  # blackbody stars
+    if output_stars_STARFORGE:  # blackbody stars
         converted._data.append({
             'x-coordinate (kpc)': (lambda: ss_x.in_units('kpc')[SUBSAMPLE3],),
             'y-coordinate (kpc)': (lambda: ss_y.in_units('kpc')[SUBSAMPLE3],),
