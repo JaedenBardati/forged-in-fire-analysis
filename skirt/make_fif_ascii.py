@@ -1,10 +1,12 @@
 import os
 import sys
+import importlib
 import importlib.util
 spec = importlib.util.spec_from_file_location("analysis", '/home1/09737/jbardati/forged_in_fire/analysis.py')
 an = importlib.util.module_from_spec(spec)
 sys.modules["analysis"] = an
 spec.loader.exec_module(an)
+# import analysis as an
 
 import numpy as np
 import yt
@@ -56,7 +58,7 @@ class ASCII_SKIRT():
 
     def read(self, filename):
         """Reads the """
-        self.df = read_into_dataframe(filename)
+        self.df = self.read_into_dataframe(filename)
         return self.df
 
     def write(self, filename, ext="txt", delim_char=' ', newline_char='\n', comment_char='# ', fmt='%.7g'):
@@ -75,7 +77,7 @@ class ASCII_SKIRT():
             raise Exception('The attributes "_data" and "_particle_types" must be iterable.')
         
         if not hasattr(self, '_comments'):
-            self._comments = tuple([None for _ in _particle_types])
+            self._comments = tuple([None for _ in self._particle_types])
         elif not hasattr(self._comments, '__iter__'):
             raise Exception('The attribute "_comments" must be iterable.')
 
@@ -96,7 +98,10 @@ class ASCII_SKIRT():
             for j, column in enumerate(self._data[i].keys()):
                 part_headers[i] += "Column %d: %s\n" % (j+1, column)
 
-            part_data[i] = np.array([list(np.asarray(data_tuple[0](*data_tuple[1:]))) for data_tuple in self._data[i].values()], dtype=float).T
+            pd = [list(np.asarray(data_tuple[0](*data_tuple[1:]))) for data_tuple in self._data[i].values()]
+            if not np.all([len(p) == len(pd[0]) for p in pd]):
+                raise RuntimeError("The size of the data entries do not line up. They are: {}".format([len(p) for p in pd]))
+            part_data[i] = np.array(pd, dtype=float).T
 
         # write files
         try:
@@ -116,7 +121,7 @@ class ASCII_SKIRT():
 ####################################
 ############ PARAMETERS ############
 step = 334
-box_size_pc = 3000  # 100
+box_size_pc = 1  # 100
 L_1dpc = np.array([-0.98285768,  0.15391984,  0.10148629])  # a "deci-parsec" - Code to get L_1dpc: snap = an.load_fifs_box(step=step, width='0.1 pc'); L_1dpc = snap.gas_angular_momentum; an.LOGGER.info('1 dpc angular momentum is: {}'.format(L_1dpc)); # at 1 pc it is: [-0.98523201,  0.14804156,  0.08603251]
 
 output_dust = True
@@ -130,6 +135,11 @@ pmpt = True      # plus metallicity plus temperature (i.e. get skirt to do extin
 
 maxTemp = None  # cut out all dust particles above a certain temperature: default - none
 voronoi = False  # voronoi binning: default - no
+
+remove_cone = False  # remove cone of dust
+cone_strength = 1e-3  # ratio of "true" simulation mass 
+cone_opening_angle = 20.0  # in degrees
+cone_radius = '10 pc'
 
 directory = "/work2/09737/jbardati/frontera/skirt/fif_particle_files/"
 ext = 'txt'
@@ -151,9 +161,16 @@ an.LOGGER.info(" Let SKIRT determine dust mass from metallicity and temperature?
 an.LOGGER.info("")
 an.LOGGER.info(" Manual sublimation temperature of dust: {}".format(maxTemp))
 an.LOGGER.info(" Voronoi binning? {}".format('Y' if voronoi else 'N'))
+an.LOGGER.info("")
+an.LOGGER.info(" Remove dust cone? {}".format('Y' if remove_cone else 'N'))
+if remove_cone:
+    an.LOGGER.info("  Cone strength: {}".format(cone_strength))
+    an.LOGGER.info("  Cone opening angle: {} deg".format(cone_opening_angle))
+    an.LOGGER.info("  Cone radius: {}".format(cone_radius))
 an.LOGGER.info("################")
 an.LOGGER.info("")
 
+assert not (remove_cone and not pmpt), "In the current implementation, the gas mass changes due to removing the dust cone, so PMPT must be enabled if you want to remove the cone."
 assert not (pmpt and voronoi), "Voronoi and PMPT not implemented together."
 assert not (output_gas and voronoi), "Voronoi and gas output not implemented together."
 assert not (output_stars_FIRE and voronoi), "Voronoi and FIRE stars output not implemented together."
@@ -162,6 +179,8 @@ if output_gas and pmpt:
     an.LOGGER.warning("You are outputting gas separately without manually specifying the dust mass (likely duplicate file)...")
 if maxTemp and pmpt:
     an.LOGGER.warning("You are sublimating the dust without manually specifying the dust mass (likely duplicate file)...")
+if voronoi:
+    an.LOGGER.warning("Something may be wrong with the current voronoi implementation. Please double check the results.")
 
 width = box_size_pc*an.pc*np.sqrt(3)*1.5 # initial width cut (buffer before rotating and cutting again by real width), x1.5 is an extra buffer just in case
 box_cutoff = box_size_pc*an.pc # roughly an order of magnitude smaller than width --> box of output (used in skirt)
@@ -171,8 +190,9 @@ boxs_name = '_%dpc' % int(box_size_pc)
 pmpt_name = '_pmpt' if pmpt and output_dust else ''
 weighted_name = '_mw' if mass_weighted and nfrac_of_full_sample != 1 else ''
 voronoi_name = '_voronoi' if voronoi else ''
+remove_cone_name = 'rc%da%dr%d' % (int(round(-np.log10(cone_strength))), int(round(cone_opening_angle)), int(round(an.parse_unit(cone_radius).in_units('pc')))) if remove_cone else ''
 
-name = directory + "fif" + frac_name + boxs_name + pmpt_name + weighted_name + voronoi_name
+name = directory + "fif" + frac_name + boxs_name + pmpt_name + weighted_name + voronoi_name + remove_cone_name
 
 
 ## LOAD DATA
@@ -181,8 +201,10 @@ snap = an.load_fifs_box(step=step, width=width)
 if output_dust or output_gas:
     pos = snap.dust_centered_pos.in_units('kpc')  # centers BH to origin
     vel = snap.dust_centered_vel.in_units('km*s**-1')  # enforces BH to have zero velocity 
+    mag = snap[('PartType0', 'MagneticField')].in_units('uG')  # convert to micro-Gauss
     x, y, z = (an.translate_and_rotate_vectors(pos, zdir=L_1dpc) * pos.units).T  # rotate so faceon is in z direction
     vx, vy, vz = (an.translate_and_rotate_vectors(vel, zdir=L_1dpc) * vel.units).T  # velocity rotates like position
+    Bx, By, Bz = (an.translate_and_rotate_vectors(mag, zdir=L_1dpc) * mag.units).T  # magnetic field rotates like position
 
     smooth = snap[('PartType0', 'SmoothingLength')].in_units('kpc')
     mass = snap[('Dust', 'mass')].in_units('Msun')
@@ -191,6 +213,7 @@ if output_dust or output_gas:
 
     gas_x, gas_y, gas_z = x.copy(), y.copy(), z.copy()
     gas_vx, gas_vy, gas_vz = vx.copy(), vy.copy(), vz.copy()
+    gas_Bx, gas_By, gas_Bz = Bx.copy(), By.copy(), Bz.copy()
     gas_smooth = smooth.copy()
     gas_mass = snap[('PartType0', 'mass')].in_units('Msun')
     gas_density = snap[('PartType0', 'density')].in_units('Msun/pc**3')
@@ -199,7 +222,23 @@ if output_dust or output_gas:
 
     mass_H_protons = snap[('PartType0', 'Masses')]*(1.0 - snap[('PartType0', 'Metallicity_00')] - snap[('PartType0', 'Metallicity_01')])
     nr_H_protons = mass_H_protons/(1.67262192e-27*an.kg)
-    nr_free_electrons = snap[('PartType0', 'ElectronAbundance')]*nr_H_protons
+    nr_free_electrons = snap[('PartType0', 'ElectronAbundance')]*nr_H_protons  # verify this is all okay
+
+    molecularH_fraction = snap[('PartType0', 'MolecularMassFraction')]  # verify this is okay
+    neutralH_fraction = snap[('PartType0', 'NeutralHydrogenAbundance')]  # verify this is okay
+    molecularH_mass = mass_H_protons*molecularH_fraction
+    neutralH_mass = mass_H_protons*neutralH_fraction
+
+    if remove_cone:
+        s = np.sqrt(x*x+y*y)
+        r2 = x*x+y*y+z*z
+        theta = np.arctan2(s, z)
+        cone = np.logical_and(np.logical_or(np.abs(theta) < cone_opening_angle*np.pi/180., np.abs(theta) > cone_opening_angle*np.pi/180. - np.pi), r2.in_units('pc**2') < (1*an.parse_unit(cone_radius)).in_units('pc')**2)
+        cone_adjustment = ~cone + cone_strength*cone
+        mass *= cone_adjustment
+        density *= cone_adjustment
+        gas_mass *= cone_adjustment  # TEMP! should really do gas and dust separate!!!
+        gas_density *= cone_adjustment # ditto^
 
 if output_stars_FIRE:
     sf_pos = (snap[('PartType4', 'Coordinates')] - snap.BH_pos).in_units('pc')
@@ -271,6 +310,9 @@ if output_dust or output_gas:
     vx = vx[dust_selection]
     vy = vy[dust_selection]
     vz = vz[dust_selection]
+    Bx = Bx[dust_selection]
+    By = By[dust_selection]
+    Bz = Bz[dust_selection]
     smooth = smooth[dust_selection]
     mass = mass[dust_selection]
     temp = temp[dust_selection]
@@ -282,6 +324,9 @@ if output_dust or output_gas:
     gas_vx = gas_vx[particle_selection]
     gas_vy = gas_vy[particle_selection]
     gas_vz = gas_vz[particle_selection]
+    gas_Bx = gas_Bx[particle_selection]
+    gas_By = gas_By[particle_selection]
+    gas_Bz = gas_Bz[particle_selection]
     gas_smooth = gas_smooth[particle_selection]
     gas_mass = gas_mass[particle_selection]
     gas_metallicity = gas_metallicity[particle_selection]
@@ -291,6 +336,9 @@ if output_dust or output_gas:
     mass_H_protons = mass_H_protons[particle_selection]
     nr_H_protons = nr_H_protons[particle_selection]
     nr_free_electrons = nr_free_electrons[particle_selection]
+
+    molecularH_mass = molecularH_mass[particle_selection]
+    neutralH_mass = neutralH_mass[particle_selection]
 
 if output_stars_FIRE:
     sf_x = sf_x[particle_selection2]
@@ -358,6 +406,9 @@ if not voronoi:
                 'z-coordinate (kpc)': (lambda: gas_z.in_units('kpc')[SUBSAMPLE],),
                 'smoothing length (kpc)': (lambda: gas_smooth.in_units('kpc')[SUBSAMPLE]/pow(nfrac_of_full_sample, 1/3.0),),
                 'gas mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,), # for dust material only (to calculate dust mass)
+                'molecular hydrogen mass (Msun)': (lambda: molecularH_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+                'neutral hydrogen mass (Msun)': (lambda: neutralH_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,),
+                'gas mass (Msun)': (lambda: gas_mass.in_units('Msun')[SUBSAMPLE]/nfrac_of_full_sample,), # for dust material only (to calculate dust mass)
                 'nr of electrons (1)': (lambda: nr_free_electrons.in_units('dimensionless')[SUBSAMPLE]/nfrac_of_full_sample,),  # for electron material only
                 'metallicity (1)': (lambda: gas_metallicity.in_units('dimensionless')[SUBSAMPLE],),
                 'temperature (K)': (lambda: temp.in_units('dimensionless')[SUBSAMPLE],), 
@@ -365,6 +416,9 @@ if not voronoi:
                 'velocity vx (km/s)': (lambda: gas_vx.in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vy (km/s)': (lambda: gas_vy.in_units('km*s**-1')[SUBSAMPLE],),
                 'velocity vz (km/s)': (lambda: gas_vz.in_units('km*s**-1')[SUBSAMPLE],),
+                'magnetic field Bx (uG)': (lambda: gas_Bx.in_units('uG')[SUBSAMPLE],),
+                'magnetic field By (uG)': (lambda: gas_By.in_units('uG')[SUBSAMPLE],),
+                'magnetic field Bz (uG)': (lambda: gas_Bz.in_units('uG')[SUBSAMPLE],),
                 # 'density (Msun/pc^3)': (lambda: density.in_units('Msun*pc**-3')[SUBSAMPLE],),
                 # 'gas density (Msun/pc^3)': (lambda: gas_density.in_units('Msun*pc**-3')[SUBSAMPLE],),
                 'silicate bin 1 weight (1)': (lambda: np.ones(len(gas_mass[SUBSAMPLE])),),
@@ -438,6 +492,10 @@ else:
         'velocity vz (km/s)': (lambda: vz.in_units('km*s**-1')[SUBSAMPLE],)
     },)
 
+
+for key, val in converted._data[0].items():
+    elem = val[0](*val[1:])
+    an.LOGGER.info("  %s: min %.2e; max %.2e; mean %.2e; median %.2e; std %.2e" % (key, np.min(elem), np.max(elem), np.mean(elem), np.median(elem), np.std(elem)))
 
 converted.write(name, ext=ext)
 an.LOGGER.info('Done! Saved at {}'.format(' and '.join([name + '_' + ptype + '.' + ext for ptype in converted._particle_types])))
