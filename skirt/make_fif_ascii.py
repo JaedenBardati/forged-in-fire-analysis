@@ -233,7 +233,7 @@ if output_dust or output_gas:
         s = np.sqrt(x*x+y*y)
         r2 = x*x+y*y+z*z
         theta = np.arctan2(s, z)
-        cone = np.logical_and(np.logical_or(np.abs(theta) < cone_opening_angle*np.pi/180., np.abs(theta) > cone_opening_angle*np.pi/180. - np.pi), r2.in_units('pc**2') < (1*an.parse_unit(cone_radius)).in_units('pc')**2)
+        cone = np.logical_and(np.logical_or(np.abs(theta) < cone_opening_angle*np.pi/180., np.abs(theta) > np.pi - cone_opening_angle*np.pi/180.), r2.in_units('pc**2') < (1*an.parse_unit(cone_radius)).in_units('pc')**2)
         cone_adjustment = ~cone + cone_strength*cone
         mass *= cone_adjustment
         density *= cone_adjustment
