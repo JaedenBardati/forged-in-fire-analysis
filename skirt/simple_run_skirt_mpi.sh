@@ -9,5 +9,8 @@ module load cmake/3.24.2
 module load intel/19.1.1
 module load impi/19.0.7
 
-ibrun /home1/09737/jbardati/SKIRT/release/SKIRT/main/skirt /home1/09737/jbardati/work/skirt/skirt_tests/PanTorus/PanTorus.ski
+export I_MPI_HYDRA_IFACE="ib0"
+export UCX_TLS="tcp"
+
+mpirun /home1/09737/jbardati/SKIRT/release/SKIRT/main/skirt /home1/09737/jbardati/work/skirt/skirt_tests/PanTorus/PanTorus.ski
 #ibrun -n 7 /home1/09737/jbardati/SKIRT/release/SKIRT/main/skirt /home1/09737/jbardati/work/skirt/skirt_tests/PanTorus/PanTorus.ski
