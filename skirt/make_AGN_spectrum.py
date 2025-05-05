@@ -24,15 +24,17 @@ def get_power_law_SED_weights(powers, wavranges, norm_wav, norm_value):
 	return weights
 
 
-WAV_MIN, WAV_MAX = (0.001, 1000) # in microns
-N = 1000 # number of wavelengths
+WAV_MIN, WAV_MAX = (1e-4, 20) # in microns
+N = 2000 # number of wavelengths
 filename = 'DiskEmissionSED.txt'
+plot_it=True
+plot_filename = 'DiskEmissionSED.png'
 
 wav = np.logspace(np.log10(WAV_MIN), np.log10(WAV_MAX), num=N)
 # powers =    np.array([     1/5.,  -1.0, -3/2.,  -4.0])
 # wavranges = np.array([ 0.001,  0.01,   0.1,   5.0,  1000])  #in microns
-powers =    np.array([     1/5.,  -1.0,  -4.0])
-wavranges = np.array([ 0.001,  0.01,   0.1,  1000])  #in microns
+powers =    np.array([    -1/10,   7/5,  3/4, -1/2, -3.0]) - 1.0
+wavranges = np.array([ 1e-4, 5e-3, 5e-2, 0.1, 1.0, 20])  #in microns
 print('Powers:', powers)
 print('Wavelength ranges:', wavranges, 'microns')
 
@@ -48,5 +50,19 @@ np.savetxt(filename, data, fmt='%.7g', delimiter=' ', newline='\n', header=heade
 print('Disk emission SED saved at', filename)
 
 
+if plot_it:
+	import matplotlib.pyplot as plt
+	plt.subplots()
+	plt.plot(wav, wav*splum, color='black')
+	#plt.scatter(wav, splum, color='black')
+	plt.xlabel(r'Wavelength $\lambda$ [$\mu$m]')
+	plt.ylabel(r'Normalized flux $\lambda F_\lambda$')
+	plt.xscale('log')
+	plt.yscale('log')
+	plt.xlim([WAV_MIN, WAV_MAX])
+	plt.tight_layout()
+	plt.savefig(plot_filename)
+
+	print('Disk emission SED image saved at', plot_filename)
 
 

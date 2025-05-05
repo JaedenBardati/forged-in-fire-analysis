@@ -1,12 +1,16 @@
 #!/bin/bash
-#SBATCH -p "development" 
-#SBATCH -N 2               # total number of MPI nodes 
-#SBATCH -n 8               # total number of MPI tasks (should scale linearly with N given a similar memory requirement; n divided by N is preferably a multiple of 56 and 8 < 56*N/n < 16)
-#SBATCH -t 2:00:00
+#SBATCH -p "nvdimm" 
+#SBATCH -N 1                 # total number of MPI nodes 
+#SBATCH -n 1                 # total number of MPI tasks (should scale linearly with N given a similar memory requirement; n divided by N is preferably a multiple of 56 and 8 < 56*N/n < 16)
+#SBATCH -t 48:00:00
+
+# For setting n here after having used standard nodes, recall the high memory nodes for Frontera are 2.1TB vs 192GB (factor of ~10) and
+# the cores per node goes from 56 to 112. The second is configured below, but the memory calulation you have to do yourself.
+# What limits your memory is MPI processes, set it lower if you get a memory issue.
 
 N=$SLURM_JOB_NUM_NODES
 n=$SLURM_NTASKS
-CORES_PER_NODE=56 # configured for Frontera default CLX nodes, set to 112 for large memory nodes
+CORES_PER_NODE=112 # configured for Frontera large memory nodes, set to 56 for regular memory nodes
 
 
 THREADS_PER_TASK=$((CORES_PER_NODE * N / n))

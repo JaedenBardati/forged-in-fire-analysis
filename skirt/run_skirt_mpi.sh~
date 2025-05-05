@@ -6,12 +6,11 @@
 
 N=$SLURM_JOB_NUM_NODES
 n=$SLURM_NTASKS
-CORES_PER_NODE=56 # configured for Frontera default CLX nodes, set to 112 for large memory nodes
-
+CORES_PER_NODE=56
 
 THREADS_PER_TASK=$((CORES_PER_NODE * N / n))
 # Typically, keep (number of threads per task) x (total number of MPI tasks) / (total number of MPI nodes) <= 56 
-# This is because Frontera's default CLX nodes have 56 cores and hyperthreading is not enabled on Frontera
+# This is because Frontera's CLX nodes (default) have 56 cores and hyperthreading is not enabled on Frontera
 # For faster performance/efficiency, reduce THREADS_PER_TASK to as low as possible (>~8), while increasing n and keeping 
 # THREADS_PER_TASK x (n/N) = 56 and N constant, until you run into memory issues. Adjust N as desired afterwards.
 # Note that the CLX nodes have 192GB shared across the 56 cores, and 144GB /tmp partition local storage on an SSD.
