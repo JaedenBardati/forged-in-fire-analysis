@@ -43,7 +43,7 @@ print('Weights:', weights)
 splum = power_law_SED(wav, powers, wavranges, weights)  #specific luminosity
 splum = splum/splum.sum() # normalize sum to 1
 
-header = "Simple piecewise power-law AGN emission spectrum up to around a milliparsec.\nColumn 1: wavelength (micron)\nColumn 2: specific luminosity (1/s/micron)"
+header = "Simple piecewise power-law AGN emission spectrum up to around a milliparsec.\nColumn 1: wavelength (micron)\nColumn 2: specific luminosity (erg/s/micron)"
 data = np.concatenate((wav, splum)).reshape((2, len(wav))).T
 
 np.savetxt(filename, data, fmt='%.7g', delimiter=' ', newline='\n', header=header, comments='# ')
